@@ -1,0 +1,111 @@
+@import 'tailwindcss';
+@import 'leaflet/dist/leaflet.css';
+
+@theme {
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --color-brand: #16a34a;
+  --color-brand-light: #22c55e;
+  --color-brand-soft: #dcfce7;
+  --color-brand-muted: #f0fdf4;
+  --color-ink: #14532d;
+  --color-muted: #64748b;
+  --color-surface: #f8fafc;
+  --color-line: #e2e8f0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+/* Leaflet tweaks */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: #e8f5e9;
+  border-radius: 1rem;
+  z-index: 0;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  background: rgba(255, 255, 255, 0.75) !important;
+  max-width: 70%;
+}
+
+.parcel-tooltip {
+  background: white !important;
+  border: none !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12) !important;
+  padding: 0.35rem 0.6rem !important;
+  font-weight: 600;
+  color: #14532d;
+}
+
+.parcel-tooltip::before {
+  display: none !important;
+}
+
+/* Soft page enter */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+
+@keyframes check-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-check-pop {
+  animation: check-pop 0.45s ease-out both;
+}
+
+/* Hide scrollbar on step pills */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
