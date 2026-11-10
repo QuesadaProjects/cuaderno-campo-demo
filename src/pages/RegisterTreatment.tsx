@@ -133,7 +133,7 @@ export function RegisterTreatment() {
     return true
   }
 
-  const goNext = () => {
+  const goNext = async () => {
     if (step < 3) {
       if (!canLeaveStep()) {
         setShowErrors(true)
@@ -157,26 +157,31 @@ export function RegisterTreatment() {
       : selectedProduct!.activeIngredient
 
     setSaving(true)
-    addTreatment({
-      date,
-      parcelIds,
-      treatedAreaHa: Number(treatedAreaHa.replace(',', '.')),
-      crop: crop.trim(),
-      productId: useUnknown ? 'unknown' : productId!,
-      productName,
-      registrationNumber,
-      activeIngredient,
-      dose,
-      doseUnit,
-      applicator: applicator.trim(),
-      safetyDays: Number(safetyDays) || 0,
-      applicationMethod,
-      notes: notes.trim() || undefined,
-    })
-    window.setTimeout(() => {
-      setSaving(false)
+    try {
+      await addTreatment({
+        date,
+        parcelIds,
+        treatedAreaHa: Number(treatedAreaHa.replace(',', '.')),
+        crop: crop.trim(),
+        productId: useUnknown ? 'unknown' : productId!,
+        productName,
+        registrationNumber,
+        activeIngredient,
+        dose,
+        doseUnit,
+        applicator: applicator.trim(),
+        safetyDays: Number(safetyDays) || 0,
+        applicationMethod,
+        notes: notes.trim() || undefined,
+      })
       setDone(true)
-    }, 350)
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'No se pudo guardar el tratamiento en Supabase',
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   const savedProductLabel = useUnknown ? unknownName : selectedProduct?.name

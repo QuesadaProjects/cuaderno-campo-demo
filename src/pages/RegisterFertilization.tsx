@@ -116,7 +116,7 @@ export function RegisterFertilization() {
     return missing
   }
 
-  const goNext = () => {
+  const goNext = async () => {
     if (step === 0) {
       if (selectedParcelIds.length === 0) {
         setFieldErrors(['Elige al menos una parcela para continuar'])
@@ -177,26 +177,31 @@ export function RegisterFertilization() {
     }
 
     setSaving(true)
-    addFertilization({
-      date,
-      parcelIds: [...parcelIds],
-      treatedAreaHa: Number(String(treatedAreaHa).replace(',', '.')),
-      fertilizerProductId: productId ?? undefined,
-      fertilizerName: fertilizerName.trim(),
-      fertilizerType: fertilizerType.trim(),
-      dose,
-      doseUnit,
-      n: n.trim() !== '' ? Number(String(n).replace(',', '.')) : undefined,
-      p: p.trim() !== '' ? Number(String(p).replace(',', '.')) : undefined,
-      k: k.trim() !== '' ? Number(String(k).replace(',', '.')) : undefined,
-      applicator: applicator.trim(),
-      notes: notes.trim() || undefined,
-    })
-    setSavedId(primaryParcelId)
-    window.setTimeout(() => {
-      setSaving(false)
+    try {
+      await addFertilization({
+        date,
+        parcelIds: [...parcelIds],
+        treatedAreaHa: Number(String(treatedAreaHa).replace(',', '.')),
+        fertilizerProductId: productId ?? undefined,
+        fertilizerName: fertilizerName.trim(),
+        fertilizerType: fertilizerType.trim(),
+        dose,
+        doseUnit,
+        n: n.trim() !== '' ? Number(String(n).replace(',', '.')) : undefined,
+        p: p.trim() !== '' ? Number(String(p).replace(',', '.')) : undefined,
+        k: k.trim() !== '' ? Number(String(k).replace(',', '.')) : undefined,
+        applicator: applicator.trim(),
+        notes: notes.trim() || undefined,
+      })
+      setSavedId(primaryParcelId)
       setDone(true)
-    }, 250)
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'No se pudo guardar la fertilización en Supabase',
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (done) {

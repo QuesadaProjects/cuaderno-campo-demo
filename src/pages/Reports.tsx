@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import {
-  FARM_NAME,
   fertParcelIds,
   formatDate,
   methodLabel,
@@ -11,7 +10,7 @@ import { exportReadablePdf, exportSiexCsv, exportSiexJson } from '../lib/export'
 type ExportKind = 'pdf' | 'csv' | 'json' | null
 
 export function Reports() {
-  const { records, parcels, markSentToSiex, treatments, fertilizations } = useApp()
+  const { records, parcels, markSentToSiex, treatments, fertilizations, farmName } = useApp()
   const [generated, setGenerated] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
@@ -33,20 +32,28 @@ export function Reports() {
     window.setTimeout(() => setSiexToast(null), 2800)
   }
 
-  const markSelected = () => {
+  const markSelected = async () => {
     if (selected.length === 0) {
       showToast('Selecciona al menos un registro pendiente.')
       return
     }
-    markSentToSiex(selected)
-    showToast(`${selected.length} registro(s) marcados como enviados a SIEX.`)
-    setSelected([])
+    try {
+      await markSentToSiex(selected)
+      showToast(`${selected.length} registro(s) marcados como enviados a SIEX.`)
+      setSelected([])
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Error al marcar SIEX')
+    }
   }
 
-  const markAllPending = () => {
-    markSentToSiex(pending.map((r) => r.id))
-    showToast(`${pending.length} registro(s) marcados como enviados a SIEX.`)
-    setSelected([])
+  const markAllPending = async () => {
+    try {
+      await markSentToSiex(pending.map((r) => r.id))
+      showToast(`${pending.length} registro(s) marcados como enviados a SIEX.`)
+      setSelected([])
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Error al marcar SIEX')
+    }
   }
 
   const handleGenerate = () => {
@@ -60,9 +67,10 @@ export function Reports() {
   const runExport = (kind: Exclude<ExportKind, null>) => {
     setExporting(kind)
     window.setTimeout(() => {
-      if (kind === 'pdf') exportReadablePdf(records, parcels)
-      if (kind === 'csv') exportSiexCsv(records, parcels)
-      if (kind === 'json') exportSiexJson(records, parcels)
+      const farm = { nombre: farmName, nif: '' }
+      if (kind === 'pdf') exportReadablePdf(records, parcels, { farm })
+      if (kind === 'csv') exportSiexCsv(records, parcels, { farm })
+      if (kind === 'json') exportSiexJson(records, parcels, { farm })
       setExporting(null)
       showToast(
         kind === 'pdf'
@@ -212,7 +220,7 @@ export function Reports() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">
                   Previsualización del cuaderno
                 </p>
-                <h2 className="mt-1 text-lg font-semibold text-ink">{FARM_NAME}</h2>
+                <h2 className="mt-1 text-lg font-semibold text-ink">{farmName}</h2>
                 <p className="text-sm text-muted">
                   {records.length} registros · {sent.length} enviados a SIEX · {pending.length}{' '}
                   pendientes

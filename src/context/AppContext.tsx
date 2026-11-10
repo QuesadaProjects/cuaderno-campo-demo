@@ -8,40 +8,55 @@ import {
   type ReactNode,
 } from 'react'
 import {
-  STORAGE_KEY,
-  initialFertilizations,
-  initialParcels,
-  initialTreatments,
-} from '../data/sampleData'
+  ensureExplotacion,
+  fetchFertilizaciones,
+  fetchParcelas,
+  fetchTratamientos,
+  insertFertilizacionesForParcels,
+  insertParcela,
+  insertTratamientosForParcels,
+  markRecordsSentToSiex,
+  patchParcela,
+  type ExplotacionRow,
+} from '../lib/supabaseData'
 import type {
   FieldRecord,
   FertilizationRecord,
   Parcel,
   TreatmentRecord,
 } from '../types'
-
-interface PersistedState {
-  parcels: Parcel[]
-  records: FieldRecord[]
-}
+import { useAuth } from './AuthContext'
 
 interface AppContextValue {
+  ready: boolean
+  loadingError: string | null
+  farmName: string
+  explotacionId: string | null
   parcels: Parcel[]
   records: FieldRecord[]
   treatments: TreatmentRecord[]
   fertilizations: FertilizationRecord[]
-  addTreatment: (record: Omit<TreatmentRecord, 'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'>) => void
+  addTreatment: (
+    record: Omit<TreatmentRecord, 'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'>,
+  ) => Promise<void>
   addFertilization: (
-    record: Omit<FertilizationRecord, 'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'>,
-  ) => void
-  markSentToSiex: (ids: string[]) => void
+    record: Omit<
+      FertilizationRecord,
+      'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'
+    >,
+  ) => Promise<void>
+  markSentToSiex: (ids: string[]) => Promise<void>
   addParcel: (
     parcel: Omit<Parcel, 'id' | 'coordinates' | 'color'> & {
       color?: string
       coordinates?: [number, number][]
     },
-  ) => Parcel
-  updateParcel: (id: string, patch: Partial<Omit<Parcel, 'id' | 'coordinates'>>) => void
+  ) => Promise<Parcel>
+  updateParcel: (
+    id: string,
+    patch: Partial<Omit<Parcel, 'id' | 'coordinates'>>,
+  ) => Promise<void>
+  refreshData: () => Promise<void>
   getParcelById: (id: string) => Parcel | undefined
   premiumOpen: boolean
   openPremium: (reason?: string) => void
@@ -51,103 +66,94 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
-function normalizeRecords(records: FieldRecord[]): FieldRecord[] {
-  return records.map((r) => {
-    if (r.type !== 'fertilizacion') return r
-    const legacy = r as FertilizationRecord & { parcelId?: string }
-    const parcelIds =
-      legacy.parcelIds?.length
-        ? legacy.parcelIds
-        : legacy.parcelId
-          ? [legacy.parcelId]
-          : []
-    return {
-      ...legacy,
-      parcelIds,
-      treatedAreaHa: legacy.treatedAreaHa > 0 ? legacy.treatedAreaHa : 0,
-    }
-  })
-}
-
-function loadState(): PersistedState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      return {
-        parcels: initialParcels,
-        records: [...initialTreatments, ...initialFertilizations],
-      }
-    }
-    const parsed = JSON.parse(raw) as PersistedState
-    if (!Array.isArray(parsed.parcels) || !Array.isArray(parsed.records)) {
-      throw new Error('estado inválido')
-    }
-    return {
-      parcels: parsed.parcels,
-      records: normalizeRecords(parsed.records),
-    }
-  } catch {
-    return {
-      parcels: initialParcels,
-      records: [...initialTreatments, ...initialFertilizations],
-    }
-  }
-}
-
-const DEFAULT_COORDS: [number, number][] = [
-  [38.0, -3.38],
-  [38.0, -3.375],
-  [37.996, -3.375],
-  [37.996, -3.38],
-]
-
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [parcels, setParcels] = useState<Parcel[]>(() => loadState().parcels)
-  const [records, setRecords] = useState<FieldRecord[]>(() => loadState().records)
+  const { user } = useAuth()
+  const [ready, setReady] = useState(!user)
+  const [loadingError, setLoadingError] = useState<string | null>(null)
+  const [explotacion, setExplotacion] = useState<ExplotacionRow | null>(null)
+  const [parcels, setParcels] = useState<Parcel[]>([])
+  const [records, setRecords] = useState<FieldRecord[]>([])
   const [premiumOpen, setPremiumOpen] = useState(false)
   const [premiumReason, setPremiumReason] = useState(
     'Desbloquea control de costes y multi-usuario',
   )
 
+  const loadForUser = useCallback(async (userId: string, email?: string | null) => {
+    setLoadingError(null)
+    setReady(false)
+    try {
+      const exp = await ensureExplotacion(userId, email)
+      setExplotacion(exp)
+
+      const nextParcels = await fetchParcelas(exp.id)
+      setParcels(nextParcels)
+
+      const parcelIds = nextParcels.map((p) => p.id)
+      const cropById = Object.fromEntries(nextParcels.map((p) => [p.id, p.crop]))
+      const [treatments, fertilizations] = await Promise.all([
+        fetchTratamientos(parcelIds, cropById),
+        fetchFertilizaciones(parcelIds),
+      ])
+
+      const merged: FieldRecord[] = [...treatments, ...fertilizations].sort((a, b) =>
+        b.date.localeCompare(a.date),
+      )
+      setRecords(merged)
+    } catch (err) {
+      console.error(err)
+      setLoadingError(
+        err instanceof Error ? err.message : 'No se pudieron cargar los datos de Supabase',
+      )
+      setExplotacion(null)
+      setParcels([])
+      setRecords([])
+    } finally {
+      setReady(true)
+    }
+  }, [])
+
   useEffect(() => {
-    const payload: PersistedState = { parcels, records }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-  }, [parcels, records])
+    if (!user) {
+      setExplotacion(null)
+      setParcels([])
+      setRecords([])
+      setLoadingError(null)
+      setReady(true)
+      return
+    }
+    void loadForUser(user.id, user.email)
+  }, [user, loadForUser])
+
+  const refreshData = useCallback(async () => {
+    if (!user) return
+    await loadForUser(user.id, user.email)
+  }, [user, loadForUser])
 
   const addTreatment = useCallback(
-    (
+    async (
       record: Omit<TreatmentRecord, 'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'>,
     ) => {
-      const full: TreatmentRecord = {
-        ...record,
-        id: `t${Date.now()}`,
-        type: 'tratamiento',
-        createdAt: new Date().toISOString(),
-        sentToSiex: false,
-      }
-      // Historial append-only: nunca se edita ni borra un registro
-      setRecords((prev) => [full, ...prev])
+      const created = await insertTratamientosForParcels(record, parcels)
+      setRecords((prev) => [...created, ...prev])
     },
-    [],
+    [parcels],
   )
 
   const addFertilization = useCallback(
-    (
-      record: Omit<FertilizationRecord, 'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'>,
+    async (
+      record: Omit<
+        FertilizationRecord,
+        'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'
+      >,
     ) => {
-      const full: FertilizationRecord = {
-        ...record,
-        id: `f${Date.now()}`,
-        type: 'fertilizacion',
-        createdAt: new Date().toISOString(),
-        sentToSiex: false,
-      }
-      setRecords((prev) => [full, ...prev])
+      const created = await insertFertilizacionesForParcels(record, parcels)
+      setRecords((prev) => [...created, ...prev])
     },
-    [],
+    [parcels],
   )
 
-  const markSentToSiex = useCallback((ids: string[]) => {
+  const markSentToSiex = useCallback(async (ids: string[]) => {
+    await markRecordsSentToSiex(ids)
     const now = new Date().toISOString()
     setRecords((prev) =>
       prev.map((r) =>
@@ -159,35 +165,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const addParcel = useCallback(
-    (
+    async (
       input: Omit<Parcel, 'id' | 'coordinates' | 'color'> & {
         color?: string
         coordinates?: [number, number][]
       },
     ) => {
-      const colors = ['#16a34a', '#65a30d', '#ca8a04', '#059669', '#0d9488', '#2563eb']
-      const offset = parcels.length * 0.004
-      const parcel: Parcel = {
-        id: `p${Date.now()}`,
+      if (!explotacion) throw new Error('No hay explotación activa')
+      const created = await insertParcela(explotacion.id, {
         name: input.name,
         crop: input.crop,
         hectares: input.hectares,
         sigpacRef: input.sigpacRef,
-        color: input.color ?? colors[parcels.length % colors.length],
-        coordinates:
-          input.coordinates ??
-          DEFAULT_COORDS.map(
-            ([lat, lng]) => [lat + offset, lng + offset] as [number, number],
-          ),
+      })
+      // Conserva coords/color del flujo SIGPAC/mapa si vienen del cliente
+      const parcel: Parcel = {
+        ...created,
+        color: input.color ?? created.color,
+        coordinates: input.coordinates ?? created.coordinates,
       }
       setParcels((prev) => [...prev, parcel])
       return parcel
     },
-    [parcels.length],
+    [explotacion],
   )
 
   const updateParcel = useCallback(
-    (id: string, patch: Partial<Omit<Parcel, 'id' | 'coordinates'>>) => {
+    async (id: string, patch: Partial<Omit<Parcel, 'id' | 'coordinates'>>) => {
+      await patchParcela(id, patch)
       setParcels((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
     },
     [],
@@ -216,6 +221,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
+      ready,
+      loadingError,
+      farmName: explotacion?.nombre ?? 'Mi explotación',
+      explotacionId: explotacion?.id ?? null,
       parcels,
       records,
       treatments,
@@ -225,6 +234,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markSentToSiex,
       addParcel,
       updateParcel,
+      refreshData,
       getParcelById,
       premiumOpen,
       openPremium,
@@ -232,6 +242,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       premiumReason,
     }),
     [
+      ready,
+      loadingError,
+      explotacion,
       parcels,
       records,
       treatments,
@@ -241,6 +254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markSentToSiex,
       addParcel,
       updateParcel,
+      refreshData,
       getParcelById,
       premiumOpen,
       openPremium,

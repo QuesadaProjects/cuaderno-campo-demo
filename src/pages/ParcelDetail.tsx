@@ -13,8 +13,9 @@ import { exportReadablePdf, exportSiexCsv, exportSiexJson } from '../lib/export'
 
 export function ParcelDetail() {
   const { id } = useParams()
-  const { records, getParcelById, parcels } = useApp()
+  const { records, getParcelById, parcels, farmName } = useApp()
   const parcel = getParcelById(id ?? '')
+  const farm = { nombre: farmName }
 
   if (!parcel) {
     return (
@@ -77,21 +78,27 @@ export function ParcelDetail() {
         <div className="mt-4 grid grid-cols-3 gap-2">
           <button
             type="button"
-            onClick={() => exportReadablePdf(records, parcels, { parcelId: parcel.id, title: `Informe — ${parcel.name}` })}
+            onClick={() =>
+              exportReadablePdf(records, parcels, {
+                parcelId: parcel.id,
+                title: `Informe — ${parcel.name}`,
+                farm,
+              })
+            }
             className="rounded-2xl bg-brand py-3 text-xs font-semibold text-white"
           >
             PDF
           </button>
           <button
             type="button"
-            onClick={() => exportSiexCsv(records, parcels, parcel.id)}
+            onClick={() => exportSiexCsv(records, parcels, { parcelId: parcel.id, farm })}
             className="rounded-2xl border border-line bg-surface py-3 text-xs font-semibold text-ink"
           >
             CSV
           </button>
           <button
             type="button"
-            onClick={() => exportSiexJson(records, parcels, parcel.id)}
+            onClick={() => exportSiexJson(records, parcels, { parcelId: parcel.id, farm })}
             className="rounded-2xl border border-line bg-surface py-3 text-xs font-semibold text-ink"
           >
             JSON SIEX

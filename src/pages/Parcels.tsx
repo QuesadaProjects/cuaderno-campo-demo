@@ -28,19 +28,25 @@ export function Parcels() {
     })
   }
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const hectares = Number(form.hectares.replace(',', '.'))
     if (!editingId || !form.name.trim() || !form.crop.trim() || !(hectares > 0)) {
       window.alert('Completa nombre, cultivo y hectáreas válidas.')
       return
     }
-    updateParcel(editingId, {
-      name: form.name.trim(),
-      crop: form.crop.trim(),
-      hectares,
-      sigpacRef: form.sigpacRef.trim() || undefined,
-    })
-    setEditingId(null)
+    try {
+      await updateParcel(editingId, {
+        name: form.name.trim(),
+        crop: form.crop.trim(),
+        hectares,
+        sigpacRef: form.sigpacRef.trim() || undefined,
+      })
+      setEditingId(null)
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'No se pudo actualizar la parcela en Supabase',
+      )
+    }
   }
 
   return (

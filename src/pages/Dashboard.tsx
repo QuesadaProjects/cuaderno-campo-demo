@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
 import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import {
-  FARM_NAME,
   daysUntilSafetyEnd,
   fertParcelIds,
   formatDate,
@@ -10,7 +10,8 @@ import {
 } from '../data/sampleData'
 
 export function Dashboard() {
-  const { parcels, records, treatments, openPremium } = useApp()
+  const { parcels, records, treatments, openPremium, farmName } = useApp()
+  const { user, signOut } = useAuth()
   const totalHa = parcels.reduce((s, p) => s + p.hectares, 0)
   const recent = [...records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
 
@@ -25,11 +26,25 @@ export function Dashboard() {
   return (
     <div className="animate-fade-up">
       <header className="px-5 pt-6 pb-4">
-        <p className="text-sm font-medium text-brand">{FARM_NAME}</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">Buenos días</h1>
-        <p className="mt-1 text-sm text-muted">
-          {totalHa} ha · plan gratis · cuaderno SIEX
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-brand">{farmName}</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">Buenos días</h1>
+            <p className="mt-1 text-sm text-muted">
+              {totalHa} ha · plan gratis · cuaderno SIEX
+            </p>
+            {user?.email && (
+              <p className="mt-1 truncate text-xs text-slate-400">{user.email}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="shrink-0 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white"
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </header>
 
       <div className="px-5">

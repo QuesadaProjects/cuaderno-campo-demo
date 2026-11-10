@@ -53,13 +53,21 @@ export function NewParcel() {
     setError(null)
     setLoading(true)
 
-    // Simula una búsqueda breve (demo)
-    window.setTimeout(() => {
-      const data = resolveSigpacDemo(ref, parcels.length)
-      const created = addParcel(data)
-      setLoading(false)
-      setSuccess({ id: created.id, name: created.name, ref: created.sigpacRef ?? ref })
-    }, 550)
+    void (async () => {
+      try {
+        // Breve delay para simular la consulta SIGPAC en demo
+        await new Promise((r) => window.setTimeout(r, 400))
+        const data = resolveSigpacDemo(ref, parcels.length)
+        const created = await addParcel(data)
+        setSuccess({ id: created.id, name: created.name, ref: created.sigpacRef ?? ref })
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'No se pudo guardar la parcela en Supabase',
+        )
+      } finally {
+        setLoading(false)
+      }
+    })()
   }
 
   const handleAddByPin = () => {
@@ -69,29 +77,36 @@ export function NewParcel() {
     }
     setError(null)
     setLoading(true)
-    window.setTimeout(() => {
-      const w = 0.0025
-      const h = 0.002
-      const created = addParcel({
-        name: `Parcela mapa ${parcels.length + 1}`,
-        crop: 'Olivar',
-        hectares: 3.5,
-        sigpacRef: undefined,
-        color: '#0d9488',
-        coordinates: [
-          [pin.lat + h, pin.lng - w],
-          [pin.lat + h, pin.lng + w],
-          [pin.lat - h, pin.lng + w],
-          [pin.lat - h, pin.lng - w],
-        ],
-      })
-      setLoading(false)
-      setSuccess({
-        id: created.id,
-        name: created.name,
-        ref: 'Ubicación marcada en mapa',
-      })
-    }, 400)
+    void (async () => {
+      try {
+        const w = 0.0025
+        const h = 0.002
+        const created = await addParcel({
+          name: `Parcela mapa ${parcels.length + 1}`,
+          crop: 'Olivar',
+          hectares: 3.5,
+          sigpacRef: undefined,
+          color: '#0d9488',
+          coordinates: [
+            [pin.lat + h, pin.lng - w],
+            [pin.lat + h, pin.lng + w],
+            [pin.lat - h, pin.lng + w],
+            [pin.lat - h, pin.lng - w],
+          ],
+        })
+        setSuccess({
+          id: created.id,
+          name: created.name,
+          ref: 'Ubicación marcada en mapa',
+        })
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'No se pudo guardar la parcela en Supabase',
+        )
+      } finally {
+        setLoading(false)
+      }
+    })()
   }
 
   if (success) {

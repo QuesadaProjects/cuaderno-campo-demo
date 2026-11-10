@@ -1,5 +1,16 @@
-import { FARM_NAME, FARM_NIF, fertParcelIds, formatDate, methodLabel } from '../data/sampleData'
+import { fertParcelIds, formatDate, methodLabel } from '../data/sampleData'
 import type { FieldRecord, FertilizationRecord, Parcel, TreatmentRecord } from '../types'
+
+export interface FarmExportInfo {
+  nombre: string
+  nif?: string
+}
+
+export interface ExportOptions {
+  parcelId?: string
+  farm?: FarmExportInfo
+  title?: string
+}
 
 function downloadBlob(content: string, filename: string, mime: string) {
   const blob = new Blob([content], { type: mime })
@@ -16,24 +27,34 @@ function recordTouchesParcel(r: FieldRecord, parcelId: string) {
   return fertParcelIds(r).includes(parcelId)
 }
 
-/** Estructura JSON simulada compatible conceptualmente con exportación SIEX */
+function normalizeOptions(
+  options?: ExportOptions | string,
+): ExportOptions {
+  if (typeof options === 'string') return { parcelId: options }
+  return options ?? {}
+}
+
+/** Estructura JSON compatible conceptualmente con exportación SIEX */
 export function buildSiexJson(
   records: FieldRecord[],
   parcels: Parcel[],
-  options?: { parcelId?: string },
+  options?: ExportOptions | string,
 ) {
-  const filtered = options?.parcelId
-    ? records.filter((r) => recordTouchesParcel(r, options.parcelId!))
+  const opts = normalizeOptions(options)
+  const filtered = opts.parcelId
+    ? records.filter((r) => recordTouchesParcel(r, opts.parcelId!))
     : records
 
   const parcelMap = Object.fromEntries(parcels.map((p) => [p.id, p]))
+  const farmName = opts.farm?.nombre ?? 'Mi explotación'
+  const farmNif = opts.farm?.nif ?? ''
 
   return {
     esquema: 'SIEX-CUADERNO-DEMO-1.0',
     generadoEn: new Date().toISOString(),
     explotacion: {
-      nombre: FARM_NAME,
-      nif: FARM_NIF,
+      nombre: farmName,
+      nif: farmNif,
     },
     tratamientosFitosanitarios: filtered
       .filter((r): r is TreatmentRecord => r.type === 'tratamiento')
@@ -90,8 +111,12 @@ export function buildSiexJson(
   }
 }
 
-export function exportSiexJson(records: FieldRecord[], parcels: Parcel[], parcelId?: string) {
-  const data = buildSiexJson(records, parcels, { parcelId })
+export function exportSiexJson(
+  records: FieldRecord[],
+  parcels: Parcel[],
+  options?: ExportOptions | string,
+) {
+  const data = buildSiexJson(records, parcels, options)
   const stamp = new Date().toISOString().slice(0, 10)
   downloadBlob(
     JSON.stringify(data, null, 2),
@@ -100,8 +125,12 @@ export function exportSiexJson(records: FieldRecord[], parcels: Parcel[], parcel
   )
 }
 
-export function exportSiexCsv(records: FieldRecord[], parcels: Parcel[], parcelId?: string) {
-  const data = buildSiexJson(records, parcels, { parcelId })
+export function exportSiexCsv(
+  records: FieldRecord[],
+  parcels: Parcel[],
+  options?: ExportOptions | string,
+) {
+  const data = buildSiexJson(records, parcels, options)
   const rows: string[][] = [
     [
       'tipo',
@@ -188,10 +217,12 @@ export function exportSiexCsv(records: FieldRecord[], parcels: Parcel[], parcelI
 export function exportReadablePdf(
   records: FieldRecord[],
   parcels: Parcel[],
-  options?: { parcelId?: string; title?: string },
+  options?: ExportOptions,
 ) {
-  const data = buildSiexJson(records, parcels, { parcelId: options?.parcelId })
-  const title = options?.title ?? `Cuaderno oficial — ${FARM_NAME}`
+  const data = buildSiexJson(records, parcels, options)
+  const farmName = options?.farm?.nombre ?? data.explotacion.nombre
+  const farmNif = options?.farm?.nif ?? data.explotacion.nif
+  const title = options?.title ?? `Cuaderno oficial — ${farmName}`
 
   const treatmentRows = data.tratamientosFitosanitarios
     .map(
@@ -225,6 +256,7 @@ export function exportReadablePdf(
     )
     .join('')
 
+  const nifLabel = farmNif ? ` · NIF ${farmNif}` : ''
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -244,7 +276,7 @@ export function exportReadablePdf(
 </head>
 <body>
   <h1>${title}</h1>
-  <p class="meta">${FARM_NAME} · NIF ${FARM_NIF} · Generado ${new Date().toLocaleString('es-ES')} · <span class="badge">Demo SIEX</span></p>
+  <p class="meta">${farmName}${nifLabel} · Generado ${new Date().toLocaleString('es-ES')} · <span class="badge">SIEX</span></p>
 
   <h2>Tratamientos fitosanitarios (${data.tratamientosFitosanitarios.length})</h2>
   <table>
