@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
 import {
@@ -28,25 +28,17 @@ function areaFromParcels(
 
 export function RegisterFertilization() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { parcels, addFertilization } = useApp()
-  const preselected = (location.state as { parcelId?: string } | null)?.parcelId
 
   const [step, setStep] = useState(0)
-  const [parcelIds, setParcelIds] = useState<string[]>(() =>
-    preselected && parcels.some((p) => p.id === preselected) ? [preselected] : [],
-  )
+  // Sin preselección: el usuario elige siempre en el Paso 1
+  const [parcelIds, setParcelIds] = useState<string[]>([])
   const [productId, setProductId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [date, setDate] = useState(todayISO())
   const [doseRaw, setDoseRaw] = useState('')
   const [doseUnit, setDoseUnit] = useState<'kg/ha' | 'l/ha'>('kg/ha')
-  const [treatedAreaHa, setTreatedAreaHa] = useState(() =>
-    areaFromParcels(
-      preselected && parcels.some((p) => p.id === preselected) ? [preselected] : [],
-      parcels,
-    ),
-  )
+  const [treatedAreaHa, setTreatedAreaHa] = useState('')
   const [fertilizerName, setFertilizerName] = useState('')
   const [fertilizerType, setFertilizerType] = useState('')
   const [n, setN] = useState('')
@@ -74,16 +66,10 @@ export function RegisterFertilization() {
     .join(', ')
 
   const primaryParcelId = parcelIds[0] ?? null
-  const lastToggleRef = useRef<{ id: string; at: number } | null>(null)
+  const hasParcelSelection = parcelIds.length > 0
 
+  // Mismo patrón que el registro de tratamientos fitosanitarios
   const toggleParcel = (id: string) => {
-    // Evita doble evento (típico de Leaflet) que selecciona y deselecciona en el mismo clic
-    const now = Date.now()
-    if (lastToggleRef.current?.id === id && now - lastToggleRef.current.at < 300) {
-      return
-    }
-    lastToggleRef.current = { id, at: now }
-
     setFieldErrors([])
     setParcelIds((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -123,11 +109,10 @@ export function RegisterFertilization() {
 
   const goNext = () => {
     if (step === 0) {
-      if (parcelIds.length === 0) {
+      if (!hasParcelSelection) {
         setFieldErrors(['Elige al menos una parcela para continuar'])
         return
       }
-      // Asegurar superficie antes de seguir
       setTreatedAreaHa(areaFromParcels(parcelIds, parcels))
       setFieldErrors([])
       setStep(1)
@@ -259,8 +244,6 @@ export function RegisterFertilization() {
     )
   }
 
-  const canContinueStep0 = parcelIds.length > 0
-
   return (
     <div className="flex min-h-dvh flex-col bg-white">
       <header className="sticky top-0 z-20 border-b border-line bg-white/95 px-4 pt-4 pb-3 backdrop-blur-md">
@@ -297,7 +280,7 @@ export function RegisterFertilization() {
             <div>
               <h2 className="text-xl font-semibold text-ink">¿En qué parcela(s)?</h2>
               <p className="mt-1 text-sm text-muted">
-                Elige una o varias en el mapa o en la lista.
+                Elige una o varias. La superficie se calcula sola cuando sea posible.
               </p>
             </div>
 
@@ -307,21 +290,15 @@ export function RegisterFertilization() {
               </p>
             ) : (
               <>
-                <ParcelMap
-                  selectedIds={parcelIds}
-                  onSelect={toggleParcel}
-                  height="h-48"
-                />
-
-                {canContinueStep0 && (
+                <ParcelMap selectedIds={parcelIds} onSelect={toggleParcel} height="h-48" />
+                {hasParcelSelection && (
                   <div className="rounded-xl bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
                     {parcelIds.length} parcela{parcelIds.length > 1 ? 's' : ''} seleccionada
                     {parcelIds.length > 1 ? 's' : ''}
                     {treatedAreaHa ? ` · ${treatedAreaHa} ha` : ''}
                   </div>
                 )}
-
-                <ul className="relative z-10 space-y-2">
+                <ul className="space-y-2">
                   {parcels.map((parcel) => {
                     const selected = parcelIds.includes(parcel.id)
                     return (
@@ -362,14 +339,10 @@ export function RegisterFertilization() {
               </>
             )}
 
-            {fieldErrors.length > 0 && (
-              <div className="space-y-1">
-                {fieldErrors.map((msg) => (
-                  <p key={msg} className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    {msg}
-                  </p>
-                ))}
-              </div>
+            {fieldErrors.length > 0 && !hasParcelSelection && (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {fieldErrors[0]}
+              </p>
             )}
           </div>
         )}
@@ -639,13 +612,9 @@ export function RegisterFertilization() {
           )}
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || (step === 0 && !hasParcelSelection)}
             onClick={goNext}
-            className={`flex-1 rounded-2xl py-3.5 font-semibold text-white transition disabled:opacity-60 ${
-              step === 0 && !canContinueStep0
-                ? 'bg-sky-600/70'
-                : 'bg-sky-600 hover:bg-sky-500'
-            }`}
+            className="flex-1 rounded-2xl bg-sky-600 py-3.5 font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-45"
           >
             {saving
               ? 'Guardando…'
