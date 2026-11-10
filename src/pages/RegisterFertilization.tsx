@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
@@ -74,18 +74,22 @@ export function RegisterFertilization() {
     .join(', ')
 
   const primaryParcelId = parcelIds[0] ?? null
-
-  const setSelectedParcels = (ids: string[]) => {
-    setParcelIds(ids)
-    setTreatedAreaHa(areaFromParcels(ids, parcels))
-    setFieldErrors([])
-  }
+  const lastToggleRef = useRef<{ id: string; at: number } | null>(null)
 
   const toggleParcel = (id: string) => {
-    const next = parcelIds.includes(id)
-      ? parcelIds.filter((x) => x !== id)
-      : [...parcelIds, id]
-    setSelectedParcels(next)
+    // Evita doble evento (típico de Leaflet) que selecciona y deselecciona en el mismo clic
+    const now = Date.now()
+    if (lastToggleRef.current?.id === id && now - lastToggleRef.current.at < 300) {
+      return
+    }
+    lastToggleRef.current = { id, at: now }
+
+    setFieldErrors([])
+    setParcelIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      setTreatedAreaHa(areaFromParcels(next, parcels))
+      return next
+    })
   }
 
   const selectProduct = (id: string) => {
@@ -293,7 +297,7 @@ export function RegisterFertilization() {
             <div>
               <h2 className="text-xl font-semibold text-ink">¿En qué parcela(s)?</h2>
               <p className="mt-1 text-sm text-muted">
-                Elige una o varias en la lista. El mapa solo muestra la selección.
+                Elige una o varias en el mapa o en la lista.
               </p>
             </div>
 
@@ -305,18 +309,19 @@ export function RegisterFertilization() {
               <>
                 <ParcelMap
                   selectedIds={parcelIds}
-                  height="h-40"
-                  interactive={false}
+                  onSelect={toggleParcel}
+                  height="h-48"
                 />
 
                 {canContinueStep0 && (
                   <div className="rounded-xl bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
-                    {parcelIds.length} seleccionada{parcelIds.length > 1 ? 's' : ''} ·{' '}
-                    {treatedAreaHa || '0'} ha
+                    {parcelIds.length} parcela{parcelIds.length > 1 ? 's' : ''} seleccionada
+                    {parcelIds.length > 1 ? 's' : ''}
+                    {treatedAreaHa ? ` · ${treatedAreaHa} ha` : ''}
                   </div>
                 )}
 
-                <ul className="space-y-2">
+                <ul className="relative z-10 space-y-2">
                   {parcels.map((parcel) => {
                     const selected = parcelIds.includes(parcel.id)
                     return (
