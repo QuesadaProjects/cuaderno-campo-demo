@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
 import {
   fertilizerProducts,
@@ -31,8 +30,8 @@ export function RegisterFertilization() {
   const { parcels, addFertilization } = useApp()
 
   const [step, setStep] = useState(0)
-  // Sin preselección: el usuario elige siempre en el Paso 1
-  const [parcelIds, setParcelIds] = useState<string[]>([])
+  /** IDs de parcelas seleccionadas. Siempre empieza vacío. */
+  const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([])
   const [productId, setProductId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [date, setDate] = useState(todayISO())
@@ -51,6 +50,10 @@ export function RegisterFertilization() {
   const [fieldErrors, setFieldErrors] = useState<string[]>([])
   const [savedId, setSavedId] = useState<string | null>(null)
 
+  // Alias para el resto del flujo (pasos 2–4 y guardado)
+  const parcelIds = selectedParcelIds
+  const hasParcelSelection = selectedParcelIds.length > 0
+
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return fertilizerProducts
@@ -60,21 +63,27 @@ export function RegisterFertilization() {
     )
   }, [query])
 
-  const parcelNames = parcelIds
+  const parcelNames = selectedParcelIds
     .map((id) => parcels.find((p) => p.id === id)?.name)
     .filter(Boolean)
     .join(', ')
 
-  const primaryParcelId = parcelIds[0] ?? null
-  const hasParcelSelection = parcelIds.length > 0
+  const primaryParcelId = selectedParcelIds[0] ?? null
 
-  // Mismo patrón que el registro de tratamientos fitosanitarios
+  // Superficie siempre derivada de la selección (sin setState dentro del updater)
+  useEffect(() => {
+    setTreatedAreaHa(areaFromParcels(selectedParcelIds, parcels))
+  }, [selectedParcelIds, parcels])
+
+  const isParcelSelected = (id: string) => selectedParcelIds.includes(id)
+
   const toggleParcel = (id: string) => {
     setFieldErrors([])
-    setParcelIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-      setTreatedAreaHa(areaFromParcels(next, parcels))
-      return next
+    setSelectedParcelIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((parcelId) => parcelId !== id)
+      }
+      return [...prev, id]
     })
   }
 
@@ -109,11 +118,10 @@ export function RegisterFertilization() {
 
   const goNext = () => {
     if (step === 0) {
-      if (!hasParcelSelection) {
+      if (selectedParcelIds.length === 0) {
         setFieldErrors(['Elige al menos una parcela para continuar'])
         return
       }
-      setTreatedAreaHa(areaFromParcels(parcelIds, parcels))
       setFieldErrors([])
       setStep(1)
       return
@@ -121,10 +129,6 @@ export function RegisterFertilization() {
 
     if (step === 1) {
       setFieldErrors([])
-      // Si hay producto elegido, los datos ya están pre-rellenos
-      if (!treatedAreaHa) {
-        setTreatedAreaHa(areaFromParcels(parcelIds, parcels))
-      }
       setStep(2)
       return
     }
@@ -280,7 +284,7 @@ export function RegisterFertilization() {
             <div>
               <h2 className="text-xl font-semibold text-ink">¿En qué parcela(s)?</h2>
               <p className="mt-1 text-sm text-muted">
-                Elige una o varias. La superficie se calcula sola cuando sea posible.
+                Marca una o varias. Ninguna viene seleccionada al empezar.
               </p>
             </div>
 
@@ -290,48 +294,42 @@ export function RegisterFertilization() {
               </p>
             ) : (
               <>
-                <ParcelMap selectedIds={parcelIds} onSelect={toggleParcel} height="h-48" />
-                {hasParcelSelection && (
-                  <div className="rounded-xl bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
-                    {parcelIds.length} parcela{parcelIds.length > 1 ? 's' : ''} seleccionada
-                    {parcelIds.length > 1 ? 's' : ''}
-                    {treatedAreaHa ? ` · ${treatedAreaHa} ha` : ''}
-                  </div>
-                )}
+                <p className="text-sm font-medium text-slate-600">
+                  {hasParcelSelection
+                    ? `${selectedParcelIds.length} seleccionada${selectedParcelIds.length > 1 ? 's' : ''} · ${treatedAreaHa} ha`
+                    : 'Ninguna parcela seleccionada'}
+                </p>
+
                 <ul className="space-y-2">
                   {parcels.map((parcel) => {
-                    const selected = parcelIds.includes(parcel.id)
+                    const selected = isParcelSelected(parcel.id)
                     return (
                       <li key={parcel.id}>
-                        <button
-                          type="button"
-                          onClick={() => toggleParcel(parcel.id)}
-                          aria-pressed={selected}
-                          className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition ${
+                        <label
+                          className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 transition ${
                             selected
                               ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-200'
-                              : 'border-line bg-white hover:border-sky-300'
+                              : 'border-slate-200 bg-white hover:border-sky-300'
                           }`}
                         >
-                          <span
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 text-sm font-bold ${
-                              selected
-                                ? 'border-sky-500 bg-sky-500 text-white'
-                                : 'border-slate-300 bg-white text-transparent'
-                            }`}
-                          >
-                            ✓
-                          </span>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleParcel(parcel.id)}
+                            className="h-5 w-5 shrink-0 accent-sky-600"
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-ink">{parcel.name}</p>
                             <p className="text-sm text-muted">
                               {parcel.crop} · {parcel.hectares} ha
                             </p>
                           </div>
-                          {selected && (
+                          {selected ? (
                             <span className="text-xs font-semibold text-sky-700">Seleccionada</span>
+                          ) : (
+                            <span className="text-xs text-slate-400">Sin seleccionar</span>
                           )}
-                        </button>
+                        </label>
                       </li>
                     )
                   })}
@@ -612,15 +610,17 @@ export function RegisterFertilization() {
           )}
           <button
             type="button"
-            disabled={saving || (step === 0 && !hasParcelSelection)}
+            disabled={saving || (step === 0 && selectedParcelIds.length === 0)}
             onClick={goNext}
-            className="flex-1 rounded-2xl bg-sky-600 py-3.5 font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex-1 rounded-2xl bg-sky-600 py-3.5 font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:opacity-100"
           >
             {saving
               ? 'Guardando…'
               : step === 3
                 ? 'Confirmar y guardar'
-                : 'Continuar'}
+                : step === 0 && selectedParcelIds.length === 0
+                  ? 'Elige una parcela'
+                  : 'Continuar'}
           </button>
         </div>
       </footer>
