@@ -74,13 +74,18 @@ export function RegisterTreatment() {
   }, [query])
 
   const toggleParcel = (id: string) => {
+    setShowErrors(false)
     setParcelIds((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-      const selected = next.map((pid) => getParcelById(pid)).filter(Boolean)
-      if (selected.length === 1) {
+      const selected = next
+        .map((pid) => parcels.find((p) => p.id === pid))
+        .filter(Boolean)
+      if (selected.length === 0) {
+        setTreatedAreaHa('')
+      } else if (selected.length === 1) {
         setCrop(selected[0]!.crop)
         setTreatedAreaHa(String(selected[0]!.hectares))
-      } else if (selected.length > 1) {
+      } else {
         const crops = [...new Set(selected.map((p) => p!.crop))]
         setCrop(crops.length === 1 ? crops[0]! : '')
         setTreatedAreaHa(String(selected.reduce((s, p) => s + p!.hectares, 0)))
@@ -93,7 +98,9 @@ export function RegisterTreatment() {
     const product = getPhytoById(id)
     setProductId(id)
     setUseUnknown(false)
+    setShowErrors(false)
     if (product) {
+      // Pre-relleno inteligente: dosis habitual + plazo de seguridad
       setDoseRaw(String(product.defaultDose).replace('.', ','))
       setDoseUnit(product.unit)
       setSafetyDays(String(product.safetyDays))
@@ -186,15 +193,16 @@ export function RegisterTreatment() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-2xl font-semibold text-ink">Tratamiento guardado correctamente</h1>
+        <p className="text-sm font-semibold uppercase tracking-wide text-brand">Guardado</p>
+        <h1 className="mt-1 text-2xl font-semibold text-ink">Tratamiento registrado con éxito</h1>
         <p className="mt-2 max-w-sm text-muted">
           {savedProductLabel} en {savedParcelNames} · {treatedAreaHa} ha · {formatDate(date)}
         </p>
-        <div className="mt-4 w-full max-w-sm space-y-2 rounded-2xl bg-brand-muted px-4 py-3 text-left text-sm text-ink">
-          <p className="font-semibold">Qué ocurre ahora</p>
+        <div className="mt-4 w-full max-w-sm space-y-2 rounded-2xl border border-brand/20 bg-brand-muted px-4 py-3 text-left text-sm text-ink">
+          <p className="font-semibold">Registro añadido al cuaderno</p>
           <p className="text-muted">
-            El registro ya forma parte del historial inalterable del cuaderno. Queda pendiente de
-            marcar como enviado a SIEX desde Informes.
+            Forma parte del historial inalterable. Puedes marcarlo como enviado a SIEX cuando quieras
+            desde Informes.
           </p>
         </div>
         <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
@@ -210,7 +218,7 @@ export function RegisterTreatment() {
             onClick={() => navigate('/informes')}
             className="rounded-2xl py-3 font-medium text-muted hover:text-ink"
           >
-            Ir a informes SIEX
+            Ir a Informes
           </button>
         </div>
       </div>
@@ -252,9 +260,18 @@ export function RegisterTreatment() {
           <div className="space-y-4">
             <div>
               <h2 className="text-xl font-semibold text-ink">Parcela(s) tratada(s)</h2>
-              <p className="mt-1 text-sm text-muted">Obligatorio para el cuaderno oficial.</p>
+              <p className="mt-1 text-sm text-muted">
+                Elige una o varias. La superficie y el cultivo se rellenan solos cuando sea posible.
+              </p>
             </div>
             <ParcelMap selectedIds={parcelIds} onSelect={toggleParcel} height="h-48" />
+            {parcelIds.length > 0 && (
+              <div className="rounded-xl bg-brand-muted px-3 py-2 text-sm font-medium text-ink">
+                {parcelIds.length} parcela{parcelIds.length > 1 ? 's' : ''} seleccionada
+                {parcelIds.length > 1 ? 's' : ''}
+                {treatedAreaHa ? ` · ${treatedAreaHa} ha` : ''}
+              </div>
+            )}
             <ul className="space-y-2">
               {parcels.map((parcel) => {
                 const selected = parcelIds.includes(parcel.id)
@@ -263,31 +280,41 @@ export function RegisterTreatment() {
                     <button
                       type="button"
                       onClick={() => toggleParcel(parcel.id)}
+                      aria-pressed={selected}
                       className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition ${
-                        selected ? 'border-brand bg-brand-muted' : 'border-line bg-white'
+                        selected
+                          ? 'border-brand bg-brand-muted ring-2 ring-brand/25'
+                          : 'border-line bg-white hover:border-brand/40'
                       }`}
                     >
                       <span
-                        className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
-                          selected ? 'border-brand bg-brand text-white' : 'border-slate-300'
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 text-sm font-bold ${
+                          selected
+                            ? 'border-brand bg-brand text-white'
+                            : 'border-slate-300 bg-white text-transparent'
                         }`}
                       >
-                        {selected && '✓'}
+                        ✓
                       </span>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="font-semibold text-ink">{parcel.name}</p>
                         <p className="text-sm text-muted">
                           {parcel.crop} · {parcel.hectares} ha
                           {parcel.sigpacRef ? ` · ${parcel.sigpacRef}` : ''}
                         </p>
                       </div>
+                      {selected && (
+                        <span className="text-xs font-semibold text-brand">Seleccionada</span>
+                      )}
                     </button>
                   </li>
                 )
               })}
             </ul>
             {showErrors && parcelIds.length === 0 && (
-              <p className="text-sm text-red-600">Selecciona al menos una parcela</p>
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Elige al menos una parcela para continuar
+              </p>
             )}
           </div>
         )}
@@ -408,7 +435,9 @@ export function RegisterTreatment() {
             )}
 
             {showErrors && !useUnknown && !productId && (
-              <p className="text-sm text-red-600">Selecciona un producto</p>
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Elige un producto de la lista para continuar
+              </p>
             )}
           </div>
         )}
@@ -416,8 +445,10 @@ export function RegisterTreatment() {
         {step === 2 && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold text-ink">Datos obligatorios</h2>
-              <p className="mt-1 text-sm text-muted">Campos requeridos por el cuaderno electrónico.</p>
+              <h2 className="text-xl font-semibold text-ink">Datos del tratamiento</h2>
+              <p className="mt-1 text-sm text-muted">
+                Revisa los valores pre-rellenados. Solo debes completar lo que falte.
+              </p>
             </div>
 
             <label className="block">
@@ -425,7 +456,10 @@ export function RegisterTreatment() {
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  setShowErrors(false)
+                }}
                 className="w-full rounded-2xl border border-line bg-white px-4 py-3.5 outline-none ring-brand/30 focus:ring-2"
               />
             </label>
@@ -435,7 +469,10 @@ export function RegisterTreatment() {
               <input
                 type="text"
                 value={crop}
-                onChange={(e) => setCrop(e.target.value)}
+                onChange={(e) => {
+                  setCrop(e.target.value)
+                  setShowErrors(false)
+                }}
                 className="w-full rounded-2xl border border-line bg-white px-4 py-3.5 outline-none ring-brand/30 focus:ring-2"
               />
             </label>
@@ -446,9 +483,13 @@ export function RegisterTreatment() {
                 type="text"
                 inputMode="decimal"
                 value={treatedAreaHa}
-                onChange={(e) => setTreatedAreaHa(e.target.value)}
+                onChange={(e) => {
+                  setTreatedAreaHa(e.target.value)
+                  setShowErrors(false)
+                }}
                 className="w-full rounded-2xl border border-line bg-white px-4 py-3.5 outline-none ring-brand/30 focus:ring-2"
               />
+              <p className="mt-1 text-xs text-muted">Calculada según las parcelas elegidas. Puedes ajustarla.</p>
             </label>
 
             <div className="grid grid-cols-2 gap-3">
@@ -458,7 +499,10 @@ export function RegisterTreatment() {
                   type="text"
                   inputMode="decimal"
                   value={doseRaw}
-                  onChange={(e) => setDoseRaw(e.target.value)}
+                  onChange={(e) => {
+                    setDoseRaw(e.target.value)
+                    setShowErrors(false)
+                  }}
                   className={`w-full rounded-2xl border bg-white px-4 py-3.5 outline-none focus:ring-2 ${
                     doseOverMax
                       ? 'border-amber-400 ring-2 ring-amber-200'
@@ -483,30 +527,33 @@ export function RegisterTreatment() {
 
             {selectedProduct && (
               <p className="text-xs text-muted">
-                Dosis habitual: {selectedProduct.defaultDose} {selectedProduct.unit} · Máximo:{' '}
-                {selectedProduct.maxDose} {selectedProduct.unit} · Materia activa:{' '}
+                Pre-rellenado: {selectedProduct.defaultDose} {selectedProduct.unit} · Máximo de
+                ejemplo {selectedProduct.maxDose} {selectedProduct.unit} ·{' '}
                 {selectedProduct.activeIngredient}
               </p>
             )}
 
             {doseOverMax && selectedProduct && (
-              <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                <p className="font-semibold">Dosis por encima del máximo recomendado</p>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                <p className="font-semibold">Aviso: dosis por encima del máximo de ejemplo</p>
                 <p className="mt-1">
-                  Has indicado {doseRaw} {doseUnit}. El máximo de ejemplo para{' '}
-                  {selectedProduct.name} es {selectedProduct.maxDose} {selectedProduct.unit}. Revisa
-                  la etiqueta antes de continuar.
+                  Has puesto {doseRaw} {doseUnit}; el máximo de ejemplo es {selectedProduct.maxDose}{' '}
+                  {selectedProduct.unit}. Puedes continuar si es correcto según la etiqueta.
                 </p>
               </div>
             )}
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Aplicador (nombre) *</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Aplicador *</span>
               <input
                 type="text"
                 value={applicator}
-                onChange={(e) => setApplicator(e.target.value)}
+                onChange={(e) => {
+                  setApplicator(e.target.value)
+                  setShowErrors(false)
+                }}
                 placeholder="Nombre y apellidos del aplicador"
+                autoComplete="name"
                 className="w-full rounded-2xl border border-line bg-white px-4 py-3.5 outline-none ring-brand/30 focus:ring-2"
               />
             </label>
@@ -548,17 +595,20 @@ export function RegisterTreatment() {
               />
             </label>
 
-            {(showErrors ? warnings : softWarnings).length > 0 && (
+            {showErrors && errors.length > 0 && (
+              <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-semibold text-amber-950">Revisa estos campos:</p>
+                {errors.map((w) => (
+                  <p key={w.message} className="text-sm text-amber-900">
+                    · {w.message}
+                  </p>
+                ))}
+              </div>
+            )}
+            {!showErrors && softWarnings.length > 0 && (
               <ul className="space-y-2">
-                {(showErrors ? warnings : softWarnings).map((w) => (
-                  <li
-                    key={w.message}
-                    className={`rounded-xl px-3 py-2 text-sm ${
-                      w.severity === 'error'
-                        ? 'bg-red-50 text-red-700'
-                        : 'bg-amber-50 text-amber-900'
-                    }`}
-                  >
+                {softWarnings.map((w) => (
+                  <li key={w.message} className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
                     {w.message}
                   </li>
                 ))}

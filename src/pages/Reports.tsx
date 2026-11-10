@@ -102,16 +102,14 @@ export function Reports() {
         </div>
       </div>
 
-      <section className="mb-8 rounded-3xl border-2 border-brand/25 bg-brand-muted/60 p-5">
+      <section className="mb-8 rounded-3xl border-2 border-brand/30 bg-brand-muted/70 p-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand">
-              Envío a SIEX
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand">Paso recomendado</p>
             <h2 className="mt-1 text-lg font-semibold text-ink">Marcar como enviado a SIEX</h2>
-            <p className="mt-1 text-sm text-muted">
-              Indica qué registros ya has comunicado al sistema oficial. No elimina ni modifica el
-              historial.
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              Cuando hayas comunicado un registro al sistema oficial, márcalo aquí. El historial no se
+              borra ni se modifica: solo cambia el estado a «enviado».
             </p>
           </div>
           {pending.length > 0 && (
@@ -120,17 +118,21 @@ export function Reports() {
               onClick={markAllPending}
               className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-brand shadow-sm"
             >
-              Marcar todos
+              Marcar todos ({pending.length})
             </button>
           )}
         </div>
 
         {pending.length === 0 ? (
-          <p className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-ink">
-            No hay pendientes: todos los registros están marcados como enviados a SIEX.
+          <p className="rounded-2xl bg-white/90 px-4 py-3 text-sm text-ink">
+            Todo al día: no hay registros pendientes de marcar como enviados a SIEX.
           </p>
         ) : (
           <>
+            <p className="mb-2 text-sm font-medium text-ink">
+              {pending.length} pendiente{pending.length > 1 ? 's' : ''} · marca los que ya hayas
+              enviado
+            </p>
             <ul className="space-y-2">
               {pending.map((r) => {
                 const parcelsLabel =
@@ -172,8 +174,9 @@ export function Reports() {
               onClick={markSelected}
               className="mt-4 w-full rounded-2xl bg-brand py-3.5 text-sm font-semibold text-white shadow-md shadow-brand/20"
             >
-              Marcar seleccionados como enviados a SIEX
-              {selected.length > 0 ? ` (${selected.length})` : ''}
+              {selected.length > 0
+                ? `Marcar ${selected.length} como enviado${selected.length > 1 ? 's' : ''} a SIEX`
+                : 'Marcar seleccionados como enviados a SIEX'}
             </button>
           </>
         )}

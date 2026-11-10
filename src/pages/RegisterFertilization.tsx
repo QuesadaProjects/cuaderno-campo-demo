@@ -92,6 +92,7 @@ export function RegisterFertilization() {
     const product = getFertilizerById(id)
     if (!product) return
     setProductId(id)
+    // Pre-relleno inteligente: abono, tipo, dosis habitual y N-P-K
     setFertilizerName(product.name)
     setFertilizerType(product.fertilizerType)
     setDoseRaw(String(product.defaultDose).replace('.', ','))
@@ -104,20 +105,22 @@ export function RegisterFertilization() {
 
   const validateDatos = (): string[] => {
     const missing: string[] = []
-    if (!date) missing.push('Indica la fecha')
-    if (!fertilizerName.trim()) missing.push('Indica el fertilizante o abono')
-    if (!fertilizerType.trim()) missing.push('Indica el tipo de fertilizante')
+    if (!date) missing.push('Falta la fecha')
+    if (!fertilizerName.trim()) missing.push('Falta el nombre del fertilizante o abono')
+    if (!fertilizerType.trim()) missing.push('Falta el tipo de fertilizante')
     const area = Number(String(treatedAreaHa).replace(',', '.'))
-    if (!(area > 0)) missing.push('Indica la superficie fertilizada (ha)')
-    if (parseDoseInput(doseRaw) === null) missing.push('Indica una dosis numérica válida')
-    if (!applicator.trim()) missing.push('Indica el nombre del aplicador')
+    if (!(area > 0)) missing.push('Indica la superficie fertilizada en hectáreas')
+    if (parseDoseInput(doseRaw) === null) {
+      missing.push('Escribe la dosis con un número (por ejemplo 200)')
+    }
+    if (!applicator.trim()) missing.push('Falta el nombre del aplicador')
     return missing
   }
 
   const goNext = () => {
     if (step === 0) {
       if (parcelIds.length === 0) {
-        setFieldErrors(['Selecciona al menos una parcela para continuar'])
+        setFieldErrors(['Elige al menos una parcela para continuar'])
         return
       }
       // Asegurar superficie antes de seguir
@@ -145,14 +148,16 @@ export function RegisterFertilization() {
       if (area !== treatedAreaHa) setTreatedAreaHa(area)
 
       const missing: string[] = []
-      if (!date) missing.push('Indica la fecha')
-      if (!fertilizerName.trim()) missing.push('Indica el fertilizante o abono')
-      if (!fertilizerType.trim()) missing.push('Indica el tipo de fertilizante')
+      if (!date) missing.push('Falta la fecha')
+      if (!fertilizerName.trim()) missing.push('Falta el nombre del fertilizante o abono')
+      if (!fertilizerType.trim()) missing.push('Falta el tipo de fertilizante')
       if (!(Number(String(area).replace(',', '.')) > 0)) {
-        missing.push('Indica la superficie fertilizada (ha)')
+        missing.push('Indica la superficie fertilizada en hectáreas')
       }
-      if (parseDoseInput(doseRaw) === null) missing.push('Indica una dosis numérica válida')
-      if (!applicator.trim()) missing.push('Indica el nombre del aplicador')
+      if (parseDoseInput(doseRaw) === null) {
+        missing.push('Escribe la dosis con un número (por ejemplo 200)')
+      }
+      if (!applicator.trim()) missing.push('Falta el nombre del aplicador')
 
       if (missing.length > 0) {
         setFieldErrors(missing)
@@ -209,14 +214,18 @@ export function RegisterFertilization() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-2xl font-semibold text-ink">Fertilización guardada correctamente</h1>
+        <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">Guardado</p>
+        <h1 className="mt-1 text-2xl font-semibold text-ink">Fertilización registrada con éxito</h1>
         <p className="mt-2 max-w-sm text-muted">
           {fertilizerName} en {parcelNames} · {treatedAreaHa} ha · {formatDate(date)}
         </p>
-        <p className="mt-3 max-w-sm rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          El registro ya está en el historial inalterable. Puedes verlo en la parcela y en Informes
-          (pendiente de marcar como enviado a SIEX).
-        </p>
+        <div className="mt-4 w-full max-w-sm rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-left text-sm text-sky-950">
+          <p className="font-semibold">Registro añadido al cuaderno</p>
+          <p className="mt-1 text-sky-900/80">
+            Ya está en el historial inalterable. Puedes verlo en la parcela y marcarlo como enviado a
+            SIEX desde Informes.
+          </p>
+        </div>
         <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
           {savedId && (
             <button
@@ -351,7 +360,7 @@ export function RegisterFertilization() {
             {fieldErrors.length > 0 && (
               <div className="space-y-1">
                 {fieldErrors.map((msg) => (
-                  <p key={msg} className="text-sm font-medium text-red-600">
+                  <p key={msg} className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
                     {msg}
                   </p>
                 ))}
@@ -560,10 +569,10 @@ export function RegisterFertilization() {
             </label>
 
             {fieldErrors.length > 0 && (
-              <div className="space-y-2 rounded-2xl border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-semibold text-red-800">Faltan datos obligatorios:</p>
+              <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-semibold text-amber-950">Revisa estos campos:</p>
                 {fieldErrors.map((msg) => (
-                  <p key={msg} className="text-sm text-red-700">
+                  <p key={msg} className="text-sm text-amber-900">
                     · {msg}
                   </p>
                 ))}
