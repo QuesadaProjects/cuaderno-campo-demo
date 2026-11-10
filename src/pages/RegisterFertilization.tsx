@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
@@ -21,10 +21,14 @@ export function RegisterFertilization() {
   const { parcels, addFertilization, getParcelById } = useApp()
   const preselected = (location.state as { parcelId?: string } | null)?.parcelId
 
-  const initialParcel = preselected ? getParcelById(preselected) : undefined
+  const initialParcel = preselected
+    ? parcels.find((p) => p.id === preselected)
+    : undefined
 
   const [step, setStep] = useState(0)
-  const [parcelIds, setParcelIds] = useState<string[]>(preselected ? [preselected] : [])
+  const [parcelIds, setParcelIds] = useState<string[]>(() =>
+    preselected ? [preselected] : [],
+  )
   const [productId, setProductId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [date, setDate] = useState(todayISO())
@@ -53,17 +57,24 @@ export function RegisterFertilization() {
     )
   }, [query])
 
+  // Mantener superficie sincronizada con las parcelas elegidas
+  useEffect(() => {
+    if (parcelIds.length === 0) {
+      setTreatedAreaHa('')
+      return
+    }
+    const total = parcelIds.reduce((sum, id) => {
+      const parcel = parcels.find((p) => p.id === id)
+      return sum + (parcel?.hectares ?? 0)
+    }, 0)
+    setTreatedAreaHa(String(total))
+  }, [parcelIds, parcels])
+
   const toggleParcel = (id: string) => {
-    setParcelIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-      const selected = next.map((pid) => getParcelById(pid)).filter(Boolean)
-      if (selected.length >= 1) {
-        setTreatedAreaHa(String(selected.reduce((s, parcel) => s + parcel!.hectares, 0)))
-      } else {
-        setTreatedAreaHa('')
-      }
-      return next
-    })
+    setShowErrors(false)
+    setParcelIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
   }
 
   const selectProduct = (id: string) => {
@@ -91,21 +102,30 @@ export function RegisterFertilization() {
   })
   const errors = warnings.filter((w) => w.severity === 'error')
 
-  const canLeaveStep = () => {
-    if (step === 0) return parcelIds.length > 0
-    if (step === 1) return true
-    if (step === 2) return errors.length === 0
-    return true
-  }
-
   const goNext = () => {
-    if (step < 3) {
-      if (!canLeaveStep()) {
+    if (step === 0) {
+      if (parcelIds.length === 0) {
         setShowErrors(true)
         return
       }
       setShowErrors(false)
-      setStep((s) => s + 1)
+      setStep(1)
+      return
+    }
+
+    if (step === 1) {
+      setShowErrors(false)
+      setStep(2)
+      return
+    }
+
+    if (step === 2) {
+      if (errors.length > 0) {
+        setShowErrors(true)
+        return
+      }
+      setShowErrors(false)
+      setStep(3)
       return
     }
 
@@ -211,7 +231,7 @@ export function RegisterFertilization() {
             <div>
               <h2 className="text-xl font-semibold text-ink">Parcela(s) fertilizada(s)</h2>
               <p className="mt-1 text-sm text-muted">
-                Puedes seleccionar una o varias. La superficie se calcula automáticamente.
+                Toca el mapa o la lista. Puedes seleccionar una o varias.
               </p>
             </div>
             {parcels.length === 0 ? (
@@ -220,32 +240,53 @@ export function RegisterFertilization() {
               </p>
             ) : (
               <>
-                <ParcelMap selectedIds={parcelIds} onSelect={toggleParcel} height="h-48" />
-                <ul className="space-y-2">
+                <div className="relative z-0">
+                  <ParcelMap selectedIds={parcelIds} onSelect={toggleParcel} height="h-48" />
+                </div>
+                {parcelIds.length > 0 && (
+                  <p className="rounded-xl bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800">
+                    {parcelIds.length} parcela{parcelIds.length > 1 ? 's' : ''} seleccionada
+                    {parcelIds.length > 1 ? 's' : ''}
+                    {treatedAreaHa ? ` · ${treatedAreaHa} ha` : ''}
+                  </p>
+                )}
+                <ul className="relative z-10 space-y-2">
                   {parcels.map((parcel) => {
                     const selected = parcelIds.includes(parcel.id)
                     return (
                       <li key={parcel.id}>
                         <button
                           type="button"
-                          onClick={() => toggleParcel(parcel.id)}
-                          className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left ${
-                            selected ? 'border-sky-500 bg-sky-50' : 'border-line bg-white'
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            toggleParcel(parcel.id)
+                          }}
+                          aria-pressed={selected}
+                          className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition ${
+                            selected
+                              ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-200'
+                              : 'border-line bg-white hover:border-sky-300'
                           }`}
                         >
                           <span
-                            className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
-                              selected ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-300'
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
+                              selected
+                                ? 'border-sky-500 bg-sky-500 text-white'
+                                : 'border-slate-300 bg-white text-transparent'
                             }`}
                           >
-                            {selected && '✓'}
+                            ✓
                           </span>
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-ink">{parcel.name}</p>
                             <p className="text-sm text-muted">
                               {parcel.crop} · {parcel.hectares} ha
                             </p>
                           </div>
+                          {selected && (
+                            <span className="text-xs font-semibold text-sky-700">Seleccionada</span>
+                          )}
                         </button>
                       </li>
                     )
@@ -254,7 +295,9 @@ export function RegisterFertilization() {
               </>
             )}
             {showErrors && parcelIds.length === 0 && (
-              <p className="text-sm text-red-600">Selecciona al menos una parcela</p>
+              <p className="text-sm font-medium text-red-600">
+                Selecciona al menos una parcela para continuar
+              </p>
             )}
           </div>
         )}

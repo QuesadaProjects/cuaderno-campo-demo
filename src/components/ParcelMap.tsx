@@ -75,9 +75,11 @@ export function ParcelMap({
   }
 
   return (
-    <div className={`relative ${height} w-full overflow-hidden rounded-2xl border border-line shadow-sm`}>
+    <div
+      className={`relative isolate ${height} w-full overflow-hidden rounded-2xl border border-line shadow-sm`}
+    >
       {tileError && (
-        <div className="absolute inset-x-3 top-3 z-[500] rounded-xl bg-white/95 px-3 py-2 text-xs text-amber-900 shadow">
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-[500] rounded-xl bg-white/95 px-3 py-2 text-xs text-amber-900 shadow">
           No se han podido cargar los mapas de OpenStreetMap. Comprueba la conexión; las parcelas
           siguen visibles.
         </div>
