@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import {
   FARM_NAME,
   daysUntilSafetyEnd,
+  fertParcelIds,
   formatDate,
   isSafetyActive,
 } from '../data/sampleData'
@@ -183,7 +184,10 @@ export function Dashboard() {
               )
             }
 
-            const parcelName = parcels.find((p) => p.id === activity.parcelId)?.name
+            const parcelName = fertParcelIds(activity)
+              .map((id) => parcels.find((p) => p.id === id)?.name)
+              .filter(Boolean)
+              .join(', ')
             return (
               <li
                 key={activity.id}
@@ -195,7 +199,8 @@ export function Dashboard() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-ink">{activity.fertilizerName}</p>
                   <p className="truncate text-sm text-muted">
-                    {parcelName} · {formatDate(activity.date)} · {activity.dose} {activity.doseUnit}
+                    {parcelName || 'Sin parcela'} · {formatDate(activity.date)} · {activity.dose}{' '}
+                    {activity.doseUnit}
                   </p>
                   <span
                     className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${

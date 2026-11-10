@@ -1,4 +1,4 @@
-import { FARM_NAME, FARM_NIF, formatDate, methodLabel } from '../data/sampleData'
+import { FARM_NAME, FARM_NIF, fertParcelIds, formatDate, methodLabel } from '../data/sampleData'
 import type { FieldRecord, FertilizationRecord, Parcel, TreatmentRecord } from '../types'
 
 function downloadBlob(content: string, filename: string, mime: string) {
@@ -11,6 +11,11 @@ function downloadBlob(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url)
 }
 
+function recordTouchesParcel(r: FieldRecord, parcelId: string) {
+  if (r.type === 'tratamiento') return r.parcelIds.includes(parcelId)
+  return fertParcelIds(r).includes(parcelId)
+}
+
 /** Estructura JSON simulada compatible conceptualmente con exportación SIEX */
 export function buildSiexJson(
   records: FieldRecord[],
@@ -18,11 +23,7 @@ export function buildSiexJson(
   options?: { parcelId?: string },
 ) {
   const filtered = options?.parcelId
-    ? records.filter((r) =>
-        r.type === 'tratamiento'
-          ? r.parcelIds.includes(options.parcelId!)
-          : r.parcelId === options.parcelId,
-      )
+    ? records.filter((r) => recordTouchesParcel(r, options.parcelId!))
     : records
 
   const parcelMap = Object.fromEntries(parcels.map((p) => [p.id, p]))
@@ -63,25 +64,29 @@ export function buildSiexJson(
       })),
     fertilizaciones: filtered
       .filter((r): r is FertilizationRecord => r.type === 'fertilizacion')
-      .map((r) => ({
-        idRegistro: r.id,
-        fecha: r.date,
-        fechaAlta: r.createdAt,
-        parcela: {
-          id: r.parcelId,
-          nombre: parcelMap[r.parcelId]?.name,
-          referenciaSigpac: parcelMap[r.parcelId]?.sigpacRef,
-        },
-        fertilizante: r.fertilizerName,
-        tipo: r.fertilizerType,
-        dosis: r.dose,
-        unidadDosis: r.doseUnit,
-        nutrientes: { N: r.n ?? null, P: r.p ?? null, K: r.k ?? null },
-        aplicador: r.applicator,
-        observaciones: r.notes ?? null,
-        enviadoSiex: r.sentToSiex,
-        enviadoSiexEn: r.sentToSiexAt ?? null,
-      })),
+      .map((r) => {
+        const ids = fertParcelIds(r)
+        return {
+          idRegistro: r.id,
+          fecha: r.date,
+          fechaAlta: r.createdAt,
+          parcelas: ids.map((id) => ({
+            id,
+            nombre: parcelMap[id]?.name,
+            referenciaSigpac: parcelMap[id]?.sigpacRef,
+          })),
+          superficieFertilizadaHa: r.treatedAreaHa,
+          fertilizante: r.fertilizerName,
+          tipo: r.fertilizerType,
+          dosis: r.dose,
+          unidadDosis: r.doseUnit,
+          nutrientes: { N: r.n ?? null, P: r.p ?? null, K: r.k ?? null },
+          aplicador: r.applicator,
+          observaciones: r.notes ?? null,
+          enviadoSiex: r.sentToSiex,
+          enviadoSiexEn: r.sentToSiexAt ?? null,
+        }
+      }),
   }
 }
 
@@ -150,8 +155,8 @@ export function exportSiexCsv(records: FieldRecord[], parcels: Parcel[], parcelI
       'fertilizacion',
       f.idRegistro,
       f.fecha,
-      f.parcela.nombre ?? '',
-      '',
+      f.parcelas.map((p) => p.nombre).join('; '),
+      String(f.superficieFertilizadaHa),
       '',
       f.fertilizante,
       '',
@@ -210,7 +215,7 @@ export function exportReadablePdf(
       (f) => `
       <tr>
         <td>${formatDate(f.fecha)}</td>
-        <td>${f.parcela.nombre ?? ''}</td>
+        <td>${f.parcelas.map((p) => p.nombre).join(', ')} (${f.superficieFertilizadaHa} ha)</td>
         <td>${f.fertilizante} (${f.tipo})</td>
         <td>${f.dosis} ${f.unidadDosis}</td>
         <td>N ${f.nutrientes.N ?? '—'} · P ${f.nutrientes.P ?? '—'} · K ${f.nutrientes.K ?? '—'}</td>

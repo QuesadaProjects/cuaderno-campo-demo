@@ -46,6 +46,24 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
+function normalizeRecords(records: FieldRecord[]): FieldRecord[] {
+  return records.map((r) => {
+    if (r.type !== 'fertilizacion') return r
+    const legacy = r as FertilizationRecord & { parcelId?: string }
+    const parcelIds =
+      legacy.parcelIds?.length
+        ? legacy.parcelIds
+        : legacy.parcelId
+          ? [legacy.parcelId]
+          : []
+    return {
+      ...legacy,
+      parcelIds,
+      treatedAreaHa: legacy.treatedAreaHa > 0 ? legacy.treatedAreaHa : 0,
+    }
+  })
+}
+
 function loadState(): PersistedState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -59,7 +77,10 @@ function loadState(): PersistedState {
     if (!Array.isArray(parsed.parcels) || !Array.isArray(parsed.records)) {
       throw new Error('estado inválido')
     }
-    return parsed
+    return {
+      parcels: parsed.parcels,
+      records: normalizeRecords(parsed.records),
+    }
   } catch {
     return {
       parcels: initialParcels,

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
+import { fertParcelIds } from '../data/sampleData'
 
 export function Parcels() {
   const { parcels, records, addParcel, updateParcel, openPremium } = useApp()
@@ -137,7 +138,7 @@ export function Parcels() {
           const count = records.filter((a) =>
             a.type === 'tratamiento'
               ? a.parcelIds.includes(parcel.id)
-              : a.parcelId === parcel.id,
+              : fertParcelIds(a).includes(parcel.id),
           ).length
           return (
             <li key={parcel.id} className="rounded-2xl border border-line bg-white">

@@ -93,7 +93,8 @@ export interface FertilizationRecord {
   type: 'fertilizacion'
   createdAt: string
   date: string
-  parcelId: string
+  parcelIds: string[]
+  treatedAreaHa: number
   fertilizerProductId?: string
   fertilizerName: string
   fertilizerType: string

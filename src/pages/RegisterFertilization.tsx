@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
 import {
-  DEFAULT_APPLICATOR,
   fertilizerProducts,
   formatDate,
   getFertilizerById,
@@ -21,21 +21,27 @@ export function RegisterFertilization() {
   const { parcels, addFertilization, getParcelById } = useApp()
   const preselected = (location.state as { parcelId?: string } | null)?.parcelId
 
+  const initialParcel = preselected ? getParcelById(preselected) : undefined
+
   const [step, setStep] = useState(0)
-  const [parcelId, setParcelId] = useState<string | null>(preselected ?? null)
+  const [parcelIds, setParcelIds] = useState<string[]>(preselected ? [preselected] : [])
   const [productId, setProductId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [date, setDate] = useState(todayISO())
   const [doseRaw, setDoseRaw] = useState('')
   const [doseUnit, setDoseUnit] = useState<'kg/ha' | 'l/ha'>('kg/ha')
+  const [treatedAreaHa, setTreatedAreaHa] = useState(
+    initialParcel ? String(initialParcel.hectares) : '',
+  )
   const [fertilizerName, setFertilizerName] = useState('')
   const [fertilizerType, setFertilizerType] = useState('')
   const [n, setN] = useState('')
   const [p, setP] = useState('')
   const [k, setK] = useState('')
-  const [applicator, setApplicator] = useState(DEFAULT_APPLICATOR)
+  const [applicator, setApplicator] = useState('')
   const [notes, setNotes] = useState('')
   const [done, setDone] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [showErrors, setShowErrors] = useState(false)
 
   const suggestions = useMemo(() => {
@@ -47,13 +53,26 @@ export function RegisterFertilization() {
     )
   }, [query])
 
+  const toggleParcel = (id: string) => {
+    setParcelIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      const selected = next.map((pid) => getParcelById(pid)).filter(Boolean)
+      if (selected.length >= 1) {
+        setTreatedAreaHa(String(selected.reduce((s, parcel) => s + parcel!.hectares, 0)))
+      } else {
+        setTreatedAreaHa('')
+      }
+      return next
+    })
+  }
+
   const selectProduct = (id: string) => {
     const product = getFertilizerById(id)
     setProductId(id)
     if (product) {
       setFertilizerName(product.name)
       setFertilizerType(product.fertilizerType)
-      setDoseRaw(String(product.defaultDose))
+      setDoseRaw(String(product.defaultDose).replace('.', ','))
       setDoseUnit(product.unit)
       setN(String(product.n))
       setP(String(product.p))
@@ -62,7 +81,8 @@ export function RegisterFertilization() {
   }
 
   const warnings = validateFertilization({
-    parcelId,
+    parcelIds,
+    treatedAreaHa: Number(String(treatedAreaHa).replace(',', '.')),
     date,
     fertilizerName,
     fertilizerType,
@@ -71,46 +91,53 @@ export function RegisterFertilization() {
   })
   const errors = warnings.filter((w) => w.severity === 'error')
 
+  const canLeaveStep = () => {
+    if (step === 0) return parcelIds.length > 0
+    if (step === 1) return true
+    if (step === 2) return errors.length === 0
+    return true
+  }
+
   const goNext = () => {
-    if (step === 0 && !parcelId) {
-      setShowErrors(true)
-      return
-    }
-    if (step === 1 && !fertilizerName.trim()) {
-      setShowErrors(true)
-      return
-    }
-    if (step === 2 && errors.length > 0) {
-      setShowErrors(true)
-      return
-    }
     if (step < 3) {
+      if (!canLeaveStep()) {
+        setShowErrors(true)
+        return
+      }
       setShowErrors(false)
       setStep((s) => s + 1)
       return
     }
 
-    if (errors.length > 0 || !parcelId) {
-      setShowErrors(true)
-      return
-    }
+    setShowErrors(true)
+    if (errors.length > 0) return
 
+    setSaving(true)
     addFertilization({
       date,
-      parcelId,
+      parcelIds,
+      treatedAreaHa: Number(String(treatedAreaHa).replace(',', '.')),
       fertilizerProductId: productId ?? undefined,
       fertilizerName: fertilizerName.trim(),
       fertilizerType: fertilizerType.trim(),
       dose: parseDoseInput(doseRaw)!,
       doseUnit,
-      n: n ? Number(n.replace(',', '.')) : undefined,
-      p: p ? Number(p.replace(',', '.')) : undefined,
-      k: k ? Number(k.replace(',', '.')) : undefined,
+      n: n !== '' ? Number(String(n).replace(',', '.')) : undefined,
+      p: p !== '' ? Number(String(p).replace(',', '.')) : undefined,
+      k: k !== '' ? Number(String(k).replace(',', '.')) : undefined,
       applicator: applicator.trim(),
       notes: notes.trim() || undefined,
     })
-    setDone(true)
+    window.setTimeout(() => {
+      setSaving(false)
+      setDone(true)
+    }, 350)
   }
+
+  const parcelNames = parcelIds
+    .map((id) => getParcelById(id)?.name)
+    .filter(Boolean)
+    .join(', ')
 
   if (done) {
     return (
@@ -120,17 +147,30 @@ export function RegisterFertilization() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-2xl font-semibold text-ink">Fertilización registrada</h1>
+        <h1 className="text-2xl font-semibold text-ink">Fertilización guardada</h1>
         <p className="mt-2 max-w-sm text-muted">
-          {fertilizerName} en {getParcelById(parcelId!)?.name} · {formatDate(date)}
+          {fertilizerName} en {parcelNames} · {treatedAreaHa} ha · {formatDate(date)}
         </p>
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          className="mt-8 w-full max-w-xs rounded-2xl bg-brand py-3.5 font-semibold text-white"
-        >
-          Volver al inicio
-        </button>
+        <p className="mt-3 max-w-sm rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          El registro forma parte del historial inalterable. Puedes marcarlo como enviado a SIEX desde
+          Informes.
+        </p>
+        <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="rounded-2xl bg-brand py-3.5 font-semibold text-white"
+          >
+            Volver al inicio
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/informes')}
+            className="rounded-2xl py-3 font-medium text-muted hover:text-ink"
+          >
+            Ir a informes SIEX
+          </button>
+        </div>
       </div>
     )
   }
@@ -149,7 +189,7 @@ export function RegisterFertilization() {
             </svg>
           </Link>
           <div className="flex-1">
-            <h1 className="text-lg font-semibold text-ink">Fertilización</h1>
+            <h1 className="text-lg font-semibold text-ink">Registro de fertilización</h1>
             <p className="text-xs text-muted">
               Paso {step + 1} de {STEPS.length} · {STEPS[step]}
             </p>
@@ -167,38 +207,66 @@ export function RegisterFertilization() {
 
       <div className="flex-1 px-5 py-5">
         {step === 0 && (
-          <div className="space-y-3">
-            <h2 className="text-xl font-semibold text-ink">¿En qué parcela?</h2>
-            {parcels.map((parcel) => (
-              <button
-                key={parcel.id}
-                type="button"
-                onClick={() => setParcelId(parcel.id)}
-                className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left ${
-                  parcelId === parcel.id ? 'border-sky-500 bg-sky-50' : 'border-line bg-white'
-                }`}
-              >
-                <span
-                  className="h-10 w-10 rounded-xl"
-                  style={{ backgroundColor: `${parcel.color}33`, border: `2px solid ${parcel.color}` }}
-                />
-                <div>
-                  <p className="font-semibold text-ink">{parcel.name}</p>
-                  <p className="text-sm text-muted">
-                    {parcel.crop} · {parcel.hectares} ha
-                  </p>
-                </div>
-              </button>
-            ))}
-            {showErrors && !parcelId && (
-              <p className="text-sm text-red-600">Selecciona una parcela</p>
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold text-ink">Parcela(s) fertilizada(s)</h2>
+              <p className="mt-1 text-sm text-muted">
+                Puedes seleccionar una o varias. La superficie se calcula automáticamente.
+              </p>
+            </div>
+            {parcels.length === 0 ? (
+              <p className="rounded-2xl bg-surface px-4 py-6 text-center text-sm text-muted">
+                No hay parcelas. Créalas primero en la sección Parcelas.
+              </p>
+            ) : (
+              <>
+                <ParcelMap selectedIds={parcelIds} onSelect={toggleParcel} height="h-48" />
+                <ul className="space-y-2">
+                  {parcels.map((parcel) => {
+                    const selected = parcelIds.includes(parcel.id)
+                    return (
+                      <li key={parcel.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleParcel(parcel.id)}
+                          className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left ${
+                            selected ? 'border-sky-500 bg-sky-50' : 'border-line bg-white'
+                          }`}
+                        >
+                          <span
+                            className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
+                              selected ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-300'
+                            }`}
+                          >
+                            {selected && '✓'}
+                          </span>
+                          <div>
+                            <p className="font-semibold text-ink">{parcel.name}</p>
+                            <p className="text-sm text-muted">
+                              {parcel.crop} · {parcel.hectares} ha
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )}
+            {showErrors && parcelIds.length === 0 && (
+              <p className="text-sm text-red-600">Selecciona al menos una parcela</p>
             )}
           </div>
         )}
 
         {step === 1 && (
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-ink">Tipo de fertilizante</h2>
+            <div>
+              <h2 className="text-xl font-semibold text-ink">Tipo de fertilizante / abono</h2>
+              <p className="mt-1 text-sm text-muted">
+                Elige un abono de ejemplo o continúa y completa los datos a mano.
+              </p>
+            </div>
             <input
               type="search"
               value={query}
@@ -206,71 +274,96 @@ export function RegisterFertilization() {
               placeholder="Buscar abono…"
               className="w-full rounded-2xl border border-line bg-surface px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
             />
-            <ul className="space-y-2">
-              {suggestions.map((f) => (
-                <li key={f.id}>
-                  <button
-                    type="button"
-                    onClick={() => selectProduct(f.id)}
-                    className={`w-full rounded-2xl border px-4 py-3.5 text-left ${
-                      productId === f.id ? 'border-sky-500 bg-sky-50' : 'border-line bg-white'
-                    }`}
-                  >
-                    <p className="font-semibold text-ink">{f.name}</p>
-                    <p className="text-sm text-muted">
-                      {f.fertilizerType} · N{f.n}-P{f.p}-K{f.k} · {f.defaultDose} {f.unit}
-                    </p>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            {suggestions.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted">No hay abonos con ese nombre</p>
+            ) : (
+              <ul className="space-y-2">
+                {suggestions.map((f) => (
+                  <li key={f.id}>
+                    <button
+                      type="button"
+                      onClick={() => selectProduct(f.id)}
+                      className={`w-full rounded-2xl border px-4 py-3.5 text-left ${
+                        productId === f.id ? 'border-sky-500 bg-sky-50' : 'border-line bg-white'
+                      }`}
+                    >
+                      <p className="font-semibold text-ink">{f.name}</p>
+                      <p className="text-sm text-muted">
+                        {f.fertilizerType} · N{f.n}-P{f.p}-K{f.k} · dosis habitual {f.defaultDose}{' '}
+                        {f.unit}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-muted">
+              Si no encuentras el abono, pulsa Continuar y escríbelo a mano en el siguiente paso.
+            </p>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-ink">Datos de la fertilización</h2>
+            <div>
+              <h2 className="text-xl font-semibold text-ink">Datos de la fertilización</h2>
+              <p className="mt-1 text-sm text-muted">Completa los campos obligatorios del cuaderno.</p>
+            </div>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">Fecha *</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Fecha *</span>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-2xl border border-line px-4 py-3.5"
+                className="w-full rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">Fertilizante *</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Fertilizante / abono *</span>
               <input
                 value={fertilizerName}
                 onChange={(e) => setFertilizerName(e.target.value)}
-                className="w-full rounded-2xl border border-line px-4 py-3.5"
+                placeholder="Nombre del abono"
+                className="w-full rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">Tipo *</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Tipo *</span>
               <input
                 value={fertilizerType}
                 onChange={(e) => setFertilizerType(e.target.value)}
-                className="w-full rounded-2xl border border-line px-4 py-3.5"
+                placeholder="Nitrogenado, NPK, orgánico…"
+                className="w-full rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">
+                Superficie fertilizada (ha) *
+              </span>
+              <input
+                value={treatedAreaHa}
+                onChange={(e) => setTreatedAreaHa(e.target.value)}
+                inputMode="decimal"
+                className="w-full rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
               />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium">Dosis *</span>
+                <span className="mb-1.5 block text-sm font-medium text-slate-700">Dosis *</span>
                 <input
                   value={doseRaw}
                   onChange={(e) => setDoseRaw(e.target.value)}
-                  className="w-full rounded-2xl border border-line px-4 py-3.5"
+                  inputMode="decimal"
+                  className="w-full rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium">Unidad</span>
+                <span className="mb-1.5 block text-sm font-medium text-slate-700">Unidad *</span>
                 <select
                   value={doseUnit}
                   onChange={(e) => setDoseUnit(e.target.value as 'kg/ha' | 'l/ha')}
-                  className="w-full rounded-2xl border border-line px-4 py-3.5"
+                  className="w-full rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
                 >
                   <option value="kg/ha">kg/ha</option>
                   <option value="l/ha">l/ha</option>
@@ -278,48 +371,59 @@ export function RegisterFertilization() {
               </label>
             </div>
             <div>
-              <p className="mb-1.5 text-sm font-medium">Nutrientes principales (%)</p>
+              <p className="mb-1.5 text-sm font-medium text-slate-700">Nutrientes principales (%)</p>
               <div className="grid grid-cols-3 gap-2">
-                <input
-                  value={n}
-                  onChange={(e) => setN(e.target.value)}
-                  placeholder="N"
-                  className="rounded-2xl border border-line px-3 py-3 text-center"
-                />
-                <input
-                  value={p}
-                  onChange={(e) => setP(e.target.value)}
-                  placeholder="P"
-                  className="rounded-2xl border border-line px-3 py-3 text-center"
-                />
-                <input
-                  value={k}
-                  onChange={(e) => setK(e.target.value)}
-                  placeholder="K"
-                  className="rounded-2xl border border-line px-3 py-3 text-center"
-                />
+                <label className="block text-center">
+                  <span className="mb-1 block text-xs text-muted">N</span>
+                  <input
+                    value={n}
+                    onChange={(e) => setN(e.target.value)}
+                    inputMode="decimal"
+                    className="w-full rounded-2xl border border-line px-3 py-3 text-center outline-none ring-sky-300 focus:ring-2"
+                  />
+                </label>
+                <label className="block text-center">
+                  <span className="mb-1 block text-xs text-muted">P</span>
+                  <input
+                    value={p}
+                    onChange={(e) => setP(e.target.value)}
+                    inputMode="decimal"
+                    className="w-full rounded-2xl border border-line px-3 py-3 text-center outline-none ring-sky-300 focus:ring-2"
+                  />
+                </label>
+                <label className="block text-center">
+                  <span className="mb-1 block text-xs text-muted">K</span>
+                  <input
+                    value={k}
+                    onChange={(e) => setK(e.target.value)}
+                    inputMode="decimal"
+                    className="w-full rounded-2xl border border-line px-3 py-3 text-center outline-none ring-sky-300 focus:ring-2"
+                  />
+                </label>
               </div>
             </div>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">Aplicador *</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Aplicador *</span>
               <input
                 value={applicator}
                 onChange={(e) => setApplicator(e.target.value)}
-                className="w-full rounded-2xl border border-line px-4 py-3.5"
+                placeholder="Nombre y apellidos del aplicador"
+                className="w-full rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">Observaciones</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Observaciones</span>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                className="w-full resize-none rounded-2xl border border-line px-4 py-3.5"
+                rows={3}
+                placeholder="Condiciones, motivo, lote del abono…"
+                className="w-full resize-none rounded-2xl border border-line px-4 py-3.5 outline-none ring-sky-300 focus:ring-2"
               />
             </label>
             {showErrors &&
               errors.map((e) => (
-                <p key={e.message} className="text-sm text-red-600">
+                <p key={e.message} className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
                   {e.message}
                 </p>
               ))}
@@ -328,26 +432,37 @@ export function RegisterFertilization() {
 
         {step === 3 && (
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-ink">Confirmar fertilización</h2>
-            <div className="rounded-3xl border border-line divide-y divide-line text-sm">
-              {[
-                ['Parcela', getParcelById(parcelId!)?.name],
-                ['Fecha', formatDate(date)],
-                ['Fertilizante', fertilizerName],
-                ['Tipo', fertilizerType],
-                ['Dosis', `${doseRaw} ${doseUnit}`],
-                ['N-P-K', `${n || '—'} / ${p || '—'} / ${k || '—'}`],
-                ['Aplicador', applicator],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-3 px-5 py-3">
-                  <span className="text-muted">{label}</span>
-                  <span className="font-medium text-ink text-right">{value}</span>
-                </div>
-              ))}
+            <div>
+              <h2 className="text-xl font-semibold text-ink">Confirmación</h2>
+              <p className="mt-1 text-sm text-muted">
+                Al guardar, el registro queda en el historial y no se podrá modificar.
+              </p>
             </div>
-            <p className="text-xs text-muted">
-              El registro se añadirá al historial inalterable del cuaderno.
-            </p>
+            <div className="overflow-hidden rounded-3xl border border-line bg-white">
+              <div className="border-b border-line bg-sky-50 px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                  Resumen fertilización
+                </p>
+                <p className="mt-1 text-lg font-semibold text-ink">{fertilizerName}</p>
+                <p className="text-sm text-muted">{fertilizerType}</p>
+              </div>
+              <dl className="divide-y divide-line text-sm">
+                {[
+                  ['Fecha', formatDate(date)],
+                  ['Parcelas', parcelNames],
+                  ['Superficie', `${treatedAreaHa} ha`],
+                  ['Dosis', `${doseRaw} ${doseUnit}`],
+                  ['N-P-K', `${n || '—'} / ${p || '—'} / ${k || '—'}`],
+                  ['Aplicador', applicator],
+                  ['Observaciones', notes || '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-3 px-5 py-3">
+                    <dt className="text-muted">{label}</dt>
+                    <dd className="text-right font-medium text-ink">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           </div>
         )}
       </div>
@@ -357,7 +472,10 @@ export function RegisterFertilization() {
           {step > 0 && (
             <button
               type="button"
-              onClick={() => setStep((s) => s - 1)}
+              onClick={() => {
+                setShowErrors(false)
+                setStep((s) => s - 1)
+              }}
               className="rounded-2xl border border-line px-5 py-3.5 font-semibold text-slate-600"
             >
               Atrás
@@ -365,10 +483,11 @@ export function RegisterFertilization() {
           )}
           <button
             type="button"
+            disabled={saving}
             onClick={goNext}
-            className="flex-1 rounded-2xl bg-sky-600 py-3.5 font-semibold text-white hover:bg-sky-500"
+            className="flex-1 rounded-2xl bg-sky-600 py-3.5 font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
           >
-            {step === 3 ? 'Confirmar y guardar' : 'Continuar'}
+            {saving ? 'Guardando…' : step === 3 ? 'Confirmar y guardar' : 'Continuar'}
           </button>
         </div>
       </footer>

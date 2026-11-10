@@ -99,7 +99,8 @@ export function validateTreatment(input: {
 }
 
 export function validateFertilization(input: {
-  parcelId: string | null
+  parcelIds: string[]
+  treatedAreaHa: number
   date: string
   fertilizerName: string
   fertilizerType: string
@@ -107,23 +108,30 @@ export function validateFertilization(input: {
   applicator: string
 }): ValidationWarning[] {
   const warnings: ValidationWarning[] = []
-  if (!input.parcelId) {
-    warnings.push({ field: 'parcela', message: 'Selecciona una parcela', severity: 'error' })
+  if (input.parcelIds.length === 0) {
+    warnings.push({ field: 'parcela', message: 'Selecciona al menos una parcela', severity: 'error' })
   }
   if (!input.date) {
     warnings.push({ field: 'fecha', message: 'La fecha es obligatoria', severity: 'error' })
   }
   if (!input.fertilizerName.trim()) {
-    warnings.push({ field: 'fertilizante', message: 'Indica el fertilizante', severity: 'error' })
+    warnings.push({ field: 'fertilizante', message: 'Indica el fertilizante o abono', severity: 'error' })
   }
   if (!input.fertilizerType.trim()) {
     warnings.push({ field: 'tipo', message: 'Indica el tipo de fertilizante', severity: 'error' })
+  }
+  if (!(input.treatedAreaHa > 0)) {
+    warnings.push({
+      field: 'superficie',
+      message: 'La superficie fertilizada debe ser mayor que 0',
+      severity: 'error',
+    })
   }
   if (parseDoseInput(input.doseRaw) === null) {
     warnings.push({ field: 'dosis', message: 'Indica una dosis numérica válida', severity: 'error' })
   }
   if (!input.applicator.trim()) {
-    warnings.push({ field: 'aplicador', message: 'Indica el aplicador', severity: 'error' })
+    warnings.push({ field: 'aplicador', message: 'Indica el nombre del aplicador', severity: 'error' })
   }
   return warnings
 }

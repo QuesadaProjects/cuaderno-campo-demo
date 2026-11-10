@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
 import {
-  DEFAULT_APPLICATOR,
   formatDate,
   getPhytoById,
   methodLabel,
@@ -35,6 +34,7 @@ export function RegisterTreatment() {
   const location = useLocation()
   const { parcels, addTreatment, getParcelById } = useApp()
   const preselected = (location.state as { parcelId?: string } | null)?.parcelId
+  const initialParcel = preselected ? getParcelById(preselected) : undefined
 
   const [step, setStep] = useState(0)
   const [parcelIds, setParcelIds] = useState<string[]>(preselected ? [preselected] : [])
@@ -47,13 +47,16 @@ export function RegisterTreatment() {
   const [doseRaw, setDoseRaw] = useState('')
   const [doseUnit, setDoseUnit] = useState<DoseUnit>('l/ha')
   const [date, setDate] = useState(todayISO())
-  const [applicator, setApplicator] = useState(DEFAULT_APPLICATOR)
-  const [crop, setCrop] = useState('')
-  const [treatedAreaHa, setTreatedAreaHa] = useState('')
+  const [applicator, setApplicator] = useState('')
+  const [crop, setCrop] = useState(initialParcel?.crop ?? '')
+  const [treatedAreaHa, setTreatedAreaHa] = useState(
+    initialParcel ? String(initialParcel.hectares) : '',
+  )
   const [applicationMethod, setApplicationMethod] = useState<ApplicationMethod>('pulverizacion')
   const [safetyDays, setSafetyDays] = useState('')
   const [notes, setNotes] = useState('')
   const [done, setDone] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [showErrors, setShowErrors] = useState(false)
 
   const selectedProduct = productId ? getPhytoById(productId) : undefined
@@ -112,6 +115,9 @@ export function RegisterTreatment() {
   })
   const errors = warnings.filter((w) => w.severity === 'error')
   const softWarnings = warnings.filter((w) => w.severity === 'warning')
+  const doseValue = parseDoseInput(doseRaw)
+  const doseOverMax =
+    !!selectedProduct && doseValue !== null && doseValue > selectedProduct.maxDose
 
   const canLeaveStep = () => {
     if (step === 0) return parcelIds.length > 0
@@ -143,6 +149,7 @@ export function RegisterTreatment() {
       ? unknownActive.trim() || 'No indicada'
       : selectedProduct!.activeIngredient
 
+    setSaving(true)
     addTreatment({
       date,
       parcelIds,
@@ -159,8 +166,17 @@ export function RegisterTreatment() {
       applicationMethod,
       notes: notes.trim() || undefined,
     })
-    setDone(true)
+    window.setTimeout(() => {
+      setSaving(false)
+      setDone(true)
+    }, 350)
   }
+
+  const savedProductLabel = useUnknown ? unknownName : selectedProduct?.name
+  const savedParcelNames = parcelIds
+    .map((id) => getParcelById(id)?.name)
+    .filter(Boolean)
+    .join(', ')
 
   if (done) {
     return (
@@ -170,10 +186,17 @@ export function RegisterTreatment() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-2xl font-semibold text-ink">Tratamiento registrado</h1>
+        <h1 className="text-2xl font-semibold text-ink">Tratamiento guardado correctamente</h1>
         <p className="mt-2 max-w-sm text-muted">
-          Guardado en el historial inalterable. Pendiente de marcar como enviado a SIEX desde Informes.
+          {savedProductLabel} en {savedParcelNames} · {treatedAreaHa} ha · {formatDate(date)}
         </p>
+        <div className="mt-4 w-full max-w-sm space-y-2 rounded-2xl bg-brand-muted px-4 py-3 text-left text-sm text-ink">
+          <p className="font-semibold">Qué ocurre ahora</p>
+          <p className="text-muted">
+            El registro ya forma parte del historial inalterable del cuaderno. Queda pendiente de
+            marcar como enviado a SIEX desde Informes.
+          </p>
+        </div>
         <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
           <button
             type="button"
@@ -436,7 +459,11 @@ export function RegisterTreatment() {
                   inputMode="decimal"
                   value={doseRaw}
                   onChange={(e) => setDoseRaw(e.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3.5 outline-none ring-brand/30 focus:ring-2"
+                  className={`w-full rounded-2xl border bg-white px-4 py-3.5 outline-none focus:ring-2 ${
+                    doseOverMax
+                      ? 'border-amber-400 ring-2 ring-amber-200'
+                      : 'border-line ring-brand/30'
+                  }`}
                 />
               </label>
               <label className="block">
@@ -456,9 +483,21 @@ export function RegisterTreatment() {
 
             {selectedProduct && (
               <p className="text-xs text-muted">
-                Máximo de ejemplo: {selectedProduct.maxDose} {selectedProduct.unit} · Materia activa:{' '}
+                Dosis habitual: {selectedProduct.defaultDose} {selectedProduct.unit} · Máximo:{' '}
+                {selectedProduct.maxDose} {selectedProduct.unit} · Materia activa:{' '}
                 {selectedProduct.activeIngredient}
               </p>
+            )}
+
+            {doseOverMax && selectedProduct && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                <p className="font-semibold">Dosis por encima del máximo recomendado</p>
+                <p className="mt-1">
+                  Has indicado {doseRaw} {doseUnit}. El máximo de ejemplo para{' '}
+                  {selectedProduct.name} es {selectedProduct.maxDose} {selectedProduct.unit}. Revisa
+                  la etiqueta antes de continuar.
+                </p>
+              </div>
             )}
 
             <label className="block">
@@ -467,6 +506,7 @@ export function RegisterTreatment() {
                 type="text"
                 value={applicator}
                 onChange={(e) => setApplicator(e.target.value)}
+                placeholder="Nombre y apellidos del aplicador"
                 className="w-full rounded-2xl border border-line bg-white px-4 py-3.5 outline-none ring-brand/30 focus:ring-2"
               />
             </label>
@@ -605,10 +645,11 @@ export function RegisterTreatment() {
           )}
           <button
             type="button"
+            disabled={saving}
             onClick={goNext}
-            className="flex-1 rounded-2xl bg-brand py-3.5 font-semibold text-white transition hover:bg-brand-light"
+            className="flex-1 rounded-2xl bg-brand py-3.5 font-semibold text-white transition hover:bg-brand-light disabled:opacity-60"
           >
-            {step === 3 ? 'Confirmar y guardar' : 'Continuar'}
+            {saving ? 'Guardando…' : step === 3 ? 'Confirmar y guardar' : 'Continuar'}
           </button>
         </div>
       </footer>

@@ -326,7 +326,8 @@ export const initialFertilizations: FertilizationRecord[] = [
     type: 'fertilizacion',
     createdAt: '2026-10-28T10:00:00.000Z',
     date: '2026-10-28',
-    parcelId: 'p3',
+    parcelIds: ['p3'],
+    treatedAreaHa: 15,
     fertilizerProductId: 'fer1',
     fertilizerName: 'Nitrato amónico 27%',
     fertilizerType: 'Nitrogenado',
@@ -344,7 +345,8 @@ export const initialFertilizations: FertilizationRecord[] = [
     type: 'fertilizacion',
     createdAt: '2026-09-30T09:15:00.000Z',
     date: '2026-09-30',
-    parcelId: 'p1',
+    parcelIds: ['p1'],
+    treatedAreaHa: 12,
     fertilizerProductId: 'fer2',
     fertilizerName: 'Abono NPK 15-15-15',
     fertilizerType: 'Complejo NPK',
@@ -359,10 +361,20 @@ export const initialFertilizations: FertilizationRecord[] = [
   },
 ]
 
+/** Compatibilidad con registros antiguos guardados en localStorage */
+export function fertParcelIds(record: {
+  parcelIds?: string[]
+  parcelId?: string
+}): string[] {
+  if (record.parcelIds?.length) return record.parcelIds
+  if (record.parcelId) return [record.parcelId]
+  return []
+}
+
 export const DEFAULT_APPLICATOR = 'Joaquín Ruiz'
 export const FARM_NAME = 'Finca Los Olivos'
 export const FARM_NIF = 'B12345678'
-export const STORAGE_KEY = 'campolibre-cuaderno-v2'
+export const STORAGE_KEY = 'campolibre-cuaderno-v3'
 
 export function getPhytoById(id: string) {
   return phytosanitaryProducts.find((p) => p.id === id)

@@ -3,6 +3,7 @@ import { ParcelMap } from '../components/ParcelMap'
 import { useApp } from '../context/AppContext'
 import {
   daysUntilSafetyEnd,
+  fertParcelIds,
   formatDate,
   formatDateTime,
   isSafetyActive,
@@ -28,7 +29,9 @@ export function ParcelDetail() {
 
   const history = records
     .filter((a) =>
-      a.type === 'tratamiento' ? a.parcelIds.includes(parcel.id) : a.parcelId === parcel.id,
+      a.type === 'tratamiento'
+        ? a.parcelIds.includes(parcel.id)
+        : fertParcelIds(a).includes(parcel.id),
     )
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
 
