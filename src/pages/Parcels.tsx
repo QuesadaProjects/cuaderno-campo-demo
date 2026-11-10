@@ -5,9 +5,8 @@ import { useApp } from '../context/AppContext'
 import { fertParcelIds } from '../data/sampleData'
 
 export function Parcels() {
-  const { parcels, records, addParcel, updateParcel, openPremium } = useApp()
+  const { parcels, records, updateParcel, openPremium } = useApp()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({
     name: '',
     crop: '',
@@ -17,17 +16,10 @@ export function Parcels() {
 
   const totalHa = parcels.reduce((s, p) => s + p.hectares, 0)
 
-  const openCreate = () => {
-    setCreating(true)
-    setEditingId(null)
-    setForm({ name: '', crop: '', hectares: '', sigpacRef: '' })
-  }
-
   const openEdit = (id: string) => {
     const p = parcels.find((x) => x.id === id)
     if (!p) return
     setEditingId(id)
-    setCreating(false)
     setForm({
       name: p.name,
       crop: p.crop,
@@ -36,28 +28,18 @@ export function Parcels() {
     })
   }
 
-  const save = () => {
+  const saveEdit = () => {
     const hectares = Number(form.hectares.replace(',', '.'))
-    if (!form.name.trim() || !form.crop.trim() || !(hectares > 0)) {
+    if (!editingId || !form.name.trim() || !form.crop.trim() || !(hectares > 0)) {
       window.alert('Completa nombre, cultivo y hectáreas válidas.')
       return
     }
-    if (creating) {
-      addParcel({
-        name: form.name.trim(),
-        crop: form.crop.trim(),
-        hectares,
-        sigpacRef: form.sigpacRef.trim() || undefined,
-      })
-    } else if (editingId) {
-      updateParcel(editingId, {
-        name: form.name.trim(),
-        crop: form.crop.trim(),
-        hectares,
-        sigpacRef: form.sigpacRef.trim() || undefined,
-      })
-    }
-    setCreating(false)
+    updateParcel(editingId, {
+      name: form.name.trim(),
+      crop: form.crop.trim(),
+      hectares,
+      sigpacRef: form.sigpacRef.trim() || undefined,
+    })
     setEditingId(null)
   }
 
@@ -70,22 +52,26 @@ export function Parcels() {
             {parcels.length} parcelas · {totalHa} ha · límite gratis 40 ha
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
+        <Link
+          to="/parcelas/nueva"
           className="rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-white"
         >
-          + Nueva
-        </button>
+          + Nueva parcela
+        </Link>
       </header>
 
       <ParcelMap height="h-48" />
 
-      {(creating || editingId) && (
+      <Link
+        to="/parcelas/nueva"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-brand/40 bg-brand-muted/50 py-3.5 text-sm font-semibold text-brand"
+      >
+        + Añadir parcela por referencia SIGPAC
+      </Link>
+
+      {editingId && (
         <div className="mt-4 space-y-3 rounded-2xl border border-brand/30 bg-brand-muted/40 p-4">
-          <p className="text-sm font-semibold text-ink">
-            {creating ? 'Nueva parcela' : 'Editar parcela'}
-          </p>
+          <p className="text-sm font-semibold text-ink">Editar parcela</p>
           <input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -114,17 +100,14 @@ export function Parcels() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={save}
+              onClick={saveEdit}
               className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-white"
             >
               Guardar
             </button>
             <button
               type="button"
-              onClick={() => {
-                setCreating(false)
-                setEditingId(null)
-              }}
+              onClick={() => setEditingId(null)}
               className="rounded-xl px-4 py-2.5 text-sm font-medium text-muted"
             >
               Cancelar

@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AppProvider } from './context/AppContext'
 import { Dashboard } from './pages/Dashboard'
+import { NewParcel } from './pages/NewParcel'
 import { ParcelDetail } from './pages/ParcelDetail'
 import { Parcels } from './pages/Parcels'
 import { RegisterFertilization } from './pages/RegisterFertilization'
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="registrar/tratamiento" element={<RegisterTreatment />} />
             <Route path="registrar/fertilizacion" element={<RegisterFertilization />} />
             <Route path="parcelas" element={<Parcels />} />
+            <Route path="parcelas/nueva" element={<NewParcel />} />
             <Route path="parcelas/:id" element={<ParcelDetail />} />
             <Route path="informes" element={<Reports />} />
             <Route path="*" element={<Navigate to="/" replace />} />

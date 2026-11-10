@@ -35,7 +35,12 @@ interface AppContextValue {
     record: Omit<FertilizationRecord, 'id' | 'createdAt' | 'type' | 'sentToSiex' | 'sentToSiexAt'>,
   ) => void
   markSentToSiex: (ids: string[]) => void
-  addParcel: (parcel: Omit<Parcel, 'id' | 'coordinates' | 'color'> & { color?: string }) => Parcel
+  addParcel: (
+    parcel: Omit<Parcel, 'id' | 'coordinates' | 'color'> & {
+      color?: string
+      coordinates?: [number, number][]
+    },
+  ) => Parcel
   updateParcel: (id: string, patch: Partial<Omit<Parcel, 'id' | 'coordinates'>>) => void
   getParcelById: (id: string) => Parcel | undefined
   premiumOpen: boolean
@@ -154,7 +159,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const addParcel = useCallback(
-    (input: Omit<Parcel, 'id' | 'coordinates' | 'color'> & { color?: string }) => {
+    (
+      input: Omit<Parcel, 'id' | 'coordinates' | 'color'> & {
+        color?: string
+        coordinates?: [number, number][]
+      },
+    ) => {
       const colors = ['#16a34a', '#65a30d', '#ca8a04', '#059669', '#0d9488', '#2563eb']
       const offset = parcels.length * 0.004
       const parcel: Parcel = {
@@ -164,7 +174,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         hectares: input.hectares,
         sigpacRef: input.sigpacRef,
         color: input.color ?? colors[parcels.length % colors.length],
-        coordinates: DEFAULT_COORDS.map(([lat, lng]) => [lat + offset, lng + offset] as [number, number]),
+        coordinates:
+          input.coordinates ??
+          DEFAULT_COORDS.map(
+            ([lat, lng]) => [lat + offset, lng + offset] as [number, number],
+          ),
       }
       setParcels((prev) => [...prev, parcel])
       return parcel
