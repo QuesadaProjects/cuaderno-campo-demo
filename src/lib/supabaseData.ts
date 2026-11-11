@@ -341,12 +341,45 @@ export async function insertFertilizacionesForParcels(
   return ((data ?? []) as FertilizacionRow[]).map(mapFertilizacion)
 }
 
-export async function markRecordsSentToSiex(ids: string[]): Promise<void> {
-  if (ids.length === 0) return
-  const [{ error: tError }, { error: fError }] = await Promise.all([
-    supabase.from('tratamientos').update({ enviado_siex: true }).in('id', ids),
-    supabase.from('fertilizaciones').update({ enviado_siex: true }).in('id', ids),
-  ])
-  if (tError) throw tError
-  if (fError) throw fError
+export async function markRecordsSentToSiex(
+  items: { id: string; type: 'tratamiento' | 'fertilizacion' }[],
+): Promise<void> {
+  if (items.length === 0) return
+
+  const treatmentIds = items
+    .filter((i) => i.type === 'tratamiento')
+    .map((i) => i.id)
+  const fertilizationIds = items
+    .filter((i) => i.type === 'fertilizacion')
+    .map((i) => i.id)
+
+  if (treatmentIds.length > 0) {
+    const { data, error } = await supabase
+      .from('tratamientos')
+      .update({ enviado_siex: true })
+      .in('id', treatmentIds)
+      .select('id')
+
+    if (error) throw error
+    if (!data || data.length === 0) {
+      throw new Error(
+        'No se pudo guardar el estado SIEX de los tratamientos en Supabase (0 filas actualizadas).',
+      )
+    }
+  }
+
+  if (fertilizationIds.length > 0) {
+    const { data, error } = await supabase
+      .from('fertilizaciones')
+      .update({ enviado_siex: true })
+      .in('id', fertilizationIds)
+      .select('id')
+
+    if (error) throw error
+    if (!data || data.length === 0) {
+      throw new Error(
+        'No se pudo guardar el estado SIEX de las fertilizaciones en Supabase (0 filas actualizadas).',
+      )
+    }
+  }
 }

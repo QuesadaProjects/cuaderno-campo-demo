@@ -12,6 +12,14 @@ export interface ExportOptions {
   title?: string
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 function downloadBlob(content: string, filename: string, mime: string) {
   const blob = new Blob([content], { type: mime })
   const url = URL.createObjectURL(blob)
@@ -257,11 +265,12 @@ export function exportReadablePdf(
     .join('')
 
   const nifLabel = farmNif ? ` · NIF ${farmNif}` : ''
+  const stamp = new Date().toISOString().slice(0, 10)
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>${title}</title>
+  <title>${escapeHtml(title)}</title>
   <style>
     body { font-family: system-ui, sans-serif; color: #0f172a; padding: 24px; }
     h1 { font-size: 20px; margin: 0 0 4px; }
@@ -275,8 +284,8 @@ export function exportReadablePdf(
   </style>
 </head>
 <body>
-  <h1>${title}</h1>
-  <p class="meta">${farmName}${nifLabel} · Generado ${new Date().toLocaleString('es-ES')} · <span class="badge">SIEX</span></p>
+  <h1>${escapeHtml(title)}</h1>
+  <p class="meta">${escapeHtml(farmName)}${escapeHtml(nifLabel)} · Generado ${escapeHtml(new Date().toLocaleString('es-ES'))} · <span class="badge">SIEX</span></p>
 
   <h2>Tratamientos fitosanitarios (${data.tratamientosFitosanitarios.length})</h2>
   <table>
@@ -299,16 +308,32 @@ export function exportReadablePdf(
     </thead>
     <tbody>${fertRows || '<tr><td colspan="7">Sin registros</td></tr>'}</tbody>
   </table>
-
-  <script>window.onload = () => { window.print(); }</script>
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=960,height=720')
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
+
   if (!win) {
-    window.alert('Permite ventanas emergentes para generar el PDF.')
+    downloadBlob(html, `cuaderno-siex-${stamp}.html`, 'text/html;charset=utf-8')
+    URL.revokeObjectURL(url)
+    window.alert(
+      'No se pudo abrir la vista de impresión (popup bloqueado). Se ha descargado el informe HTML: ábrelo y usa Imprimir → Guardar como PDF.',
+    )
     return
   }
-  win.document.write(html)
-  win.document.close()
+
+  const triggerPrint = () => {
+    try {
+      win.focus()
+      win.print()
+    } catch {
+      // Si el navegador bloquea print automático, el HTML ya está visible
+    }
+  }
+
+  // Esperar a que el blob cargue antes de imprimir
+  window.setTimeout(triggerPrint, 400)
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }

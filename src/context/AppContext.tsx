@@ -152,17 +152,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [parcels],
   )
 
-  const markSentToSiex = useCallback(async (ids: string[]) => {
-    await markRecordsSentToSiex(ids)
-    const now = new Date().toISOString()
-    setRecords((prev) =>
-      prev.map((r) =>
-        ids.includes(r.id) && !r.sentToSiex
-          ? { ...r, sentToSiex: true, sentToSiexAt: now }
-          : r,
-      ),
-    )
-  }, [])
+  const markSentToSiex = useCallback(
+    async (ids: string[]) => {
+      const items = records
+        .filter((r) => ids.includes(r.id))
+        .map((r) => ({ id: r.id, type: r.type }))
+      if (items.length === 0) return
+
+      await markRecordsSentToSiex(items)
+
+      const now = new Date().toISOString()
+      setRecords((prev) =>
+        prev.map((r) =>
+          ids.includes(r.id) && !r.sentToSiex
+            ? { ...r, sentToSiex: true, sentToSiexAt: now }
+            : r,
+        ),
+      )
+    },
+    [records],
+  )
 
   const addParcel = useCallback(
     async (
