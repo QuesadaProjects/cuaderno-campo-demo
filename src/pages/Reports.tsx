@@ -206,7 +206,7 @@ export function Reports() {
                           {r.type === 'tratamiento' ? ` · Reg. ${r.registrationNumber}` : ''}
                         </p>
                       </div>
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
                         Pendiente
                       </span>
                     </label>
@@ -296,7 +296,7 @@ export function Reports() {
                             <p className="mt-0.5 font-semibold text-ink">{a.productName}</p>
                           </div>
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                               a.sentToSiex
                                 ? 'bg-brand-soft text-brand'
                                 : 'bg-amber-50 text-amber-800'
@@ -376,7 +376,7 @@ export function Reports() {
                           <p className="mt-0.5 font-semibold text-ink">{a.fertilizerName}</p>
                         </div>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                             a.sentToSiex
                               ? 'bg-brand-soft text-brand'
                               : 'bg-amber-50 text-amber-800'

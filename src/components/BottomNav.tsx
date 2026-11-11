@@ -57,7 +57,7 @@ export function BottomNav() {
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `flex min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] font-medium transition-colors ${
+              `flex min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
                 isActive ? 'text-brand' : 'text-slate-400 hover:text-slate-600'
               }`
             }
