@@ -341,45 +341,58 @@ export async function insertFertilizacionesForParcels(
   return ((data ?? []) as FertilizacionRow[]).map(mapFertilizacion)
 }
 
+async function updateEnviadoSiex(
+  table: 'tratamientos' | 'fertilizaciones',
+  ids: string[],
+): Promise<number> {
+  if (ids.length === 0) return 0
+
+  let updated = 0
+  for (const id of ids) {
+    const { data, error } = await supabase
+      .from(table)
+      .update({ enviado_siex: true })
+      .eq('id', id)
+      .select('id, enviado_siex')
+      .maybeSingle()
+
+    if (error) {
+      throw new Error(
+        `Error al actualizar ${table} (${id}): ${error.message}`,
+      )
+    }
+    if (!data) {
+      throw new Error(
+        `No se pudo actualizar ${table}: el registro no existe o falta política RLS de UPDATE.`,
+      )
+    }
+    if (data.enviado_siex !== true) {
+      throw new Error(
+        `Supabase no confirmó enviado_siex=true en ${table} (${id}).`,
+      )
+    }
+    updated += 1
+  }
+  return updated
+}
+
 export async function markRecordsSentToSiex(
   items: { id: string; type: 'tratamiento' | 'fertilizacion' }[],
-): Promise<void> {
-  if (items.length === 0) return
+): Promise<number> {
+  if (items.length === 0) return 0
 
-  const treatmentIds = items
-    .filter((i) => i.type === 'tratamiento')
-    .map((i) => i.id)
-  const fertilizationIds = items
-    .filter((i) => i.type === 'fertilizacion')
-    .map((i) => i.id)
+  const treatmentIds = [
+    ...new Set(items.filter((i) => i.type === 'tratamiento').map((i) => i.id)),
+  ]
+  const fertilizationIds = [
+    ...new Set(items.filter((i) => i.type === 'fertilizacion').map((i) => i.id)),
+  ]
 
-  if (treatmentIds.length > 0) {
-    const { data, error } = await supabase
-      .from('tratamientos')
-      .update({ enviado_siex: true })
-      .in('id', treatmentIds)
-      .select('id')
+  const updatedTreatments = await updateEnviadoSiex('tratamientos', treatmentIds)
+  const updatedFertilizations = await updateEnviadoSiex(
+    'fertilizaciones',
+    fertilizationIds,
+  )
 
-    if (error) throw error
-    if (!data || data.length === 0) {
-      throw new Error(
-        'No se pudo guardar el estado SIEX de los tratamientos en Supabase (0 filas actualizadas).',
-      )
-    }
-  }
-
-  if (fertilizationIds.length > 0) {
-    const { data, error } = await supabase
-      .from('fertilizaciones')
-      .update({ enviado_siex: true })
-      .in('id', fertilizationIds)
-      .select('id')
-
-    if (error) throw error
-    if (!data || data.length === 0) {
-      throw new Error(
-        'No se pudo guardar el estado SIEX de las fertilizaciones en Supabase (0 filas actualizadas).',
-      )
-    }
-  }
+  return updatedTreatments + updatedFertilizations
 }

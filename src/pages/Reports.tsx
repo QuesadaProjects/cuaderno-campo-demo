@@ -15,7 +15,10 @@ export function Reports() {
   const [generating, setGenerating] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [exporting, setExporting] = useState<ExportKind>(null)
-  const [siexToast, setSiexToast] = useState<string | null>(null)
+  const [siexToast, setSiexToast] = useState<{ message: string; tone: 'ok' | 'error' } | null>(
+    null,
+  )
+  const [marking, setMarking] = useState(false)
 
   const pending = useMemo(() => records.filter((r) => !r.sentToSiex), [records])
   const sent = useMemo(() => records.filter((r) => r.sentToSiex), [records])
@@ -27,32 +30,58 @@ export function Reports() {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
-  const showToast = (message: string) => {
-    setSiexToast(message)
-    window.setTimeout(() => setSiexToast(null), 2800)
+  const showToast = (message: string, tone: 'ok' | 'error' = 'ok') => {
+    setSiexToast({ message, tone })
+    window.setTimeout(() => setSiexToast(null), tone === 'error' ? 6000 : 3200)
   }
 
   const markSelected = async () => {
     if (selected.length === 0) {
-      showToast('Selecciona al menos un registro pendiente.')
+      showToast('Selecciona al menos un registro pendiente.', 'error')
       return
     }
+    if (marking) return
+    setMarking(true)
     try {
+      const count = selected.length
       await markSentToSiex(selected)
-      showToast(`${selected.length} registro(s) marcados como enviados a SIEX.`)
       setSelected([])
+      showToast(
+        count === 1
+          ? 'Registro marcado como enviado a SIEX.'
+          : `${count} registros marcados como enviados a SIEX.`,
+        'ok',
+      )
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Error al marcar SIEX')
+      showToast(
+        err instanceof Error ? err.message : 'No se pudo marcar como enviado a SIEX',
+        'error',
+      )
+    } finally {
+      setMarking(false)
     }
   }
 
   const markAllPending = async () => {
+    if (pending.length === 0 || marking) return
+    setMarking(true)
     try {
+      const count = pending.length
       await markSentToSiex(pending.map((r) => r.id))
-      showToast(`${pending.length} registro(s) marcados como enviados a SIEX.`)
       setSelected([])
+      showToast(
+        count === 1
+          ? 'Registro marcado como enviado a SIEX.'
+          : `${count} registros marcados como enviados a SIEX.`,
+        'ok',
+      )
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Error al marcar SIEX')
+      showToast(
+        err instanceof Error ? err.message : 'No se pudo marcar como enviado a SIEX',
+        'error',
+      )
+    } finally {
+      setMarking(false)
     }
   }
 
@@ -90,8 +119,15 @@ export function Reports() {
       </header>
 
       {siexToast && (
-        <div className="mb-4 rounded-2xl border border-brand/20 bg-brand-muted px-4 py-3 text-sm text-ink">
-          {siexToast}
+        <div
+          role="status"
+          className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+            siexToast.tone === 'error'
+              ? 'border-amber-300 bg-amber-50 text-amber-950'
+              : 'border-brand/20 bg-brand-muted text-ink'
+          }`}
+        >
+          {siexToast.message}
         </div>
       )}
 
@@ -123,10 +159,11 @@ export function Reports() {
           {pending.length > 0 && (
             <button
               type="button"
-              onClick={markAllPending}
-              className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-brand shadow-sm"
+              disabled={marking}
+              onClick={() => void markAllPending()}
+              className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-brand shadow-sm disabled:opacity-60"
             >
-              Marcar todos ({pending.length})
+              {marking ? 'Guardando…' : `Marcar todos (${pending.length})`}
             </button>
           )}
         </div>
@@ -179,12 +216,15 @@ export function Reports() {
             </ul>
             <button
               type="button"
-              onClick={markSelected}
-              className="mt-4 w-full rounded-2xl bg-brand py-3.5 text-sm font-semibold text-white shadow-md shadow-brand/20"
+              disabled={marking}
+              onClick={() => void markSelected()}
+              className="mt-4 w-full rounded-2xl bg-brand py-3.5 text-sm font-semibold text-white shadow-md shadow-brand/20 disabled:opacity-60"
             >
-              {selected.length > 0
-                ? `Marcar ${selected.length} como enviado${selected.length > 1 ? 's' : ''} a SIEX`
-                : 'Marcar seleccionados como enviados a SIEX'}
+              {marking
+                ? 'Guardando en Supabase…'
+                : selected.length > 0
+                  ? `Marcar ${selected.length} como enviado${selected.length > 1 ? 's' : ''} a SIEX`
+                  : 'Marcar seleccionados como enviados a SIEX'}
             </button>
           </>
         )}
@@ -419,6 +459,35 @@ export function Reports() {
                 CSV y JSON usan estructura de demo compatible con SIEX. El PDF abre la impresión del
                 navegador.
               </p>
+
+              <div className="mt-3 border-t border-line pt-3">
+                <a
+                  href="https://www.fega.gob.es/es/siex1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-brand/30 bg-brand-muted py-3.5 text-sm font-semibold text-brand"
+                >
+                  Ir a la plataforma SIEX
+                  <svg
+                    viewBox="0 0 20 20"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 4h8v8M16 4 8.5 11.5M12 16H5.5A1.5 1.5 0 0 1 4 14.5v-7"
+                    />
+                  </svg>
+                </a>
+                <p className="mt-2 text-center text-xs leading-relaxed text-muted">
+                  Descarga primero el informe (PDF, CSV o JSON) y súbelo después en la plataforma
+                  oficial del SIEX.
+                </p>
+              </div>
             </div>
           </div>
 

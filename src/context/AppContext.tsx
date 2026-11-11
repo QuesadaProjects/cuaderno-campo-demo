@@ -154,17 +154,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const markSentToSiex = useCallback(
     async (ids: string[]) => {
+      const uniqueIds = [...new Set(ids)]
       const items = records
-        .filter((r) => ids.includes(r.id))
+        .filter((r) => uniqueIds.includes(r.id))
         .map((r) => ({ id: r.id, type: r.type }))
-      if (items.length === 0) return
 
-      await markRecordsSentToSiex(items)
+      if (uniqueIds.length === 0) {
+        throw new Error('No hay registros seleccionados')
+      }
+      if (items.length === 0) {
+        throw new Error('Los registros seleccionados no están disponibles')
+      }
+
+      const updatedCount = await markRecordsSentToSiex(items)
+      if (updatedCount === 0) {
+        throw new Error('Supabase no actualizó ningún registro')
+      }
 
       const now = new Date().toISOString()
+      const confirmedIds = new Set(items.map((i) => i.id))
       setRecords((prev) =>
         prev.map((r) =>
-          ids.includes(r.id) && !r.sentToSiex
+          confirmedIds.has(r.id)
             ? { ...r, sentToSiex: true, sentToSiexAt: now }
             : r,
         ),
