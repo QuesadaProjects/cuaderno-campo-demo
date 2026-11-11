@@ -154,8 +154,16 @@ export function mapFertilizacion(row: FertilizacionRow): FertilizationRecord {
 
 export async function ensureExplotacion(
   userId: string,
-  email?: string | null,
+  options?: { email?: string | null; displayName?: string | null },
 ): Promise<ExplotacionRow> {
+  const firstName =
+    options?.displayName?.trim().split(/\s+/)[0] ||
+    options?.email?.split('@')[0]?.trim() ||
+    null
+  const desiredNombre = firstName
+    ? `Explotación de ${firstName}`
+    : 'Mi explotación'
+
   const { data: existing, error: selectError } = await supabase
     .from('explotaciones')
     .select('*')
@@ -165,16 +173,25 @@ export async function ensureExplotacion(
     .maybeSingle()
 
   if (selectError) throw selectError
-  if (existing) return existing as ExplotacionRow
 
-  const localPart = email?.split('@')[0]?.trim()
-  const nombre = localPart
-    ? `Explotación de ${localPart}`
-    : 'Mi explotación'
+  if (existing) {
+    const row = existing as ExplotacionRow
+    // Si ya tenemos el nombre real del usuario, alineamos el de la explotación
+    if (firstName && row.nombre !== desiredNombre) {
+      const { data: updated, error: updateError } = await supabase
+        .from('explotaciones')
+        .update({ nombre: desiredNombre })
+        .eq('id', row.id)
+        .select('*')
+        .maybeSingle()
+      if (!updateError && updated) return updated as ExplotacionRow
+    }
+    return row
+  }
 
   const { data: created, error: insertError } = await supabase
     .from('explotaciones')
-    .insert({ user_id: userId, nombre })
+    .insert({ user_id: userId, nombre: desiredNombre })
     .select('*')
     .single()
 

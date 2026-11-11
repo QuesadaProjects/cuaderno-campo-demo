@@ -1,0 +1,9 @@
+Plantilla para pegar en Supabase Dashboard
+=========================================
+Ruta: Authentication → Email Templates → Confirm sign up
+
+Asunto:
+Confirma tu cuenta en CampoLibre
+
+Cuerpo (HTML):
+usa el contenido de supabase/templates/confirmation.html

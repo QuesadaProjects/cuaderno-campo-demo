@@ -15,7 +15,11 @@ interface AuthContextValue {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+  ) => Promise<{ error: string | null; needsConfirmation: boolean }>
   signInWithGoogle: () => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
@@ -79,10 +83,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error ? mapAuthError(error.message) : null }
   }, [])
 
-  const signUp = useCallback(async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string, name: string) => {
+    const nombre = name.trim()
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: {
+        data: {
+          nombre,
+          full_name: nombre,
+          name: nombre,
+        },
+        emailRedirectTo: `${window.location.origin}/`,
+      },
     })
     if (error) {
       return { error: mapAuthError(error.message), needsConfirmation: false }

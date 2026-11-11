@@ -34,6 +34,7 @@ function EyeIcon({ open }: { open: boolean }) {
 export function Login() {
   const { session, loading, signIn, signUp, signInWithGoogle } = useAuth()
   const [mode, setMode] = useState<Mode>('login')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -62,11 +63,16 @@ export function Login() {
     setInfo(null)
 
     const trimmed = email.trim()
+    const trimmedName = name.trim()
     if (!trimmed || !password) {
       setError('Introduce email y contraseña')
       return
     }
     if (mode === 'register') {
+      if (!trimmedName) {
+        setError('Introduce tu nombre')
+        return
+      }
       if (password.length < 6) {
         setError('La contraseña debe tener al menos 6 caracteres')
         return
@@ -83,7 +89,11 @@ export function Login() {
         const { error: signInError } = await signIn(trimmed, password)
         if (signInError) setError(signInError)
       } else {
-        const { error: signUpError, needsConfirmation } = await signUp(trimmed, password)
+        const { error: signUpError, needsConfirmation } = await signUp(
+          trimmed,
+          password,
+          trimmedName,
+        )
         if (signUpError) {
           setError(signUpError)
         } else if (needsConfirmation) {
@@ -157,6 +167,21 @@ export function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'register' && (
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Nombre</span>
+              <input
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="José"
+                required
+                className="w-full rounded-2xl border border-line bg-surface px-4 py-3.5 outline-none ring-brand/30 focus:ring-2"
+              />
+            </label>
+          )}
+
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-slate-700">Email</span>
             <input

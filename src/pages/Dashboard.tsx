@@ -8,11 +8,12 @@ import {
   formatDate,
   isSafetyActive,
 } from '../data/sampleData'
+import { getExplotacionLabel } from '../lib/userDisplay'
 
 export function Dashboard() {
-  const { parcels, records, treatments, openPremium, farmName } = useApp()
+  const { parcels, records, treatments, openPremium } = useApp()
   const { user, signOut } = useAuth()
-  const totalHa = parcels.reduce((s, p) => s + p.hectares, 0)
+  const explotacionLabel = getExplotacionLabel(user)
   const recent = [...records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
 
   const activeSafety = treatments
@@ -28,14 +29,10 @@ export function Dashboard() {
       <header className="px-5 pt-6 pb-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-brand">{farmName}</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">Buenos días</h1>
-            <p className="mt-1 text-sm text-muted">
-              {totalHa} ha · plan gratis · cuaderno SIEX
-            </p>
-            {user?.email && (
-              <p className="mt-1 truncate text-xs text-slate-400">{user.email}</p>
-            )}
+            <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+              {explotacionLabel}
+            </h1>
+            <p className="mt-1 text-sm text-muted">Cuaderno SIEX</p>
           </div>
           <button
             type="button"

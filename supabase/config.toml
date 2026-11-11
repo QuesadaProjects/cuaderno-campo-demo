@@ -1,0 +1,7 @@
+# Configuración local de Supabase (CLI).
+# En el proyecto alojado, copia también estas plantillas en:
+# Authentication → Email Templates → Confirm sign up
+
+[auth.email.template.confirmation]
+subject = "Confirma tu cuenta en CampoLibre"
+content_path = "./supabase/templates/confirmation.html"

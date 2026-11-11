@@ -19,6 +19,7 @@ import {
   patchParcela,
   type ExplotacionRow,
 } from '../lib/supabaseData'
+import { getUserFirstName } from '../lib/userDisplay'
 import type {
   FieldRecord,
   FertilizationRecord,
@@ -78,11 +79,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     'Desbloquea control de costes y multi-usuario',
   )
 
-  const loadForUser = useCallback(async (userId: string, email?: string | null) => {
+  const loadForUser = useCallback(
+    async (
+      userId: string,
+      options?: { email?: string | null; displayName?: string | null },
+    ) => {
     setLoadingError(null)
     setReady(false)
     try {
-      const exp = await ensureExplotacion(userId, email)
+      const exp = await ensureExplotacion(userId, options)
       setExplotacion(exp)
 
       const nextParcels = await fetchParcelas(exp.id)
@@ -110,7 +115,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setReady(true)
     }
-  }, [])
+  },
+  [],
+  )
 
   useEffect(() => {
     if (!user) {
@@ -121,12 +128,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setReady(true)
       return
     }
-    void loadForUser(user.id, user.email)
+    void loadForUser(user.id, {
+      email: user.email,
+      displayName: getUserFirstName(user),
+    })
   }, [user, loadForUser])
 
   const refreshData = useCallback(async () => {
     if (!user) return
-    await loadForUser(user.id, user.email)
+    await loadForUser(user.id, {
+      email: user.email,
+      displayName: getUserFirstName(user),
+    })
   }, [user, loadForUser])
 
   const addTreatment = useCallback(
