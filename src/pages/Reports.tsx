@@ -465,7 +465,7 @@ export function Reports() {
                   href="https://www.fega.gob.es/es/siex1"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-brand/30 bg-brand-muted py-3.5 text-sm font-semibold text-brand"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#FF9900] py-3.5 text-sm font-semibold text-white hover:bg-[#e68a00]"
                 >
                   Ir a la plataforma SIEX
                   <svg
